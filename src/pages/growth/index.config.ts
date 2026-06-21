@@ -1,0 +1,4 @@
+export default definePageConfig({
+  navigationBarTitleText: '成长记录',
+  enablePullDownRefresh: true
+});

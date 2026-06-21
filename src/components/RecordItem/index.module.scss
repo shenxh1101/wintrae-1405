@@ -1,0 +1,111 @@
+@use '@/styles/variables.scss' as *;
+
+.recordItem {
+  @include card-style;
+  display: flex;
+  align-items: center;
+  gap: $spacing-lg;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.playIcon {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: $radius-round;
+  background: $color-primary-gradient;
+  @include flex-center;
+  font-size: $font-size-xxl;
+  flex-shrink: 0;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  &.playing {
+    background: $color-green;
+  }
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.bookTitle {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  margin-top: $spacing-xs;
+  @include text-ellipsis;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  margin-top: $spacing-sm;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.duration {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.date {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.deleteBtn {
+  @include button-reset;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: $radius-round;
+  background: rgba($color-error, 0.1);
+  color: $color-error;
+  font-size: $font-size-md;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.9);
+    background: rgba($color-error, 0.2);
+  }
+}
+
+.progressBar {
+  height: 6rpx;
+  border-radius: $radius-round;
+  background: $color-divider;
+  margin-top: $spacing-md;
+  overflow: hidden;
+
+  &.active {
+    background: rgba($color-green, 0.2);
+  }
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: $radius-round;
+  background: $color-primary;
+  transition: width $transition-base;
+
+  &.active {
+    background: $color-green;
+  }
+}
