@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import Taro from '@tarojs/taro';
 import {
-  Book, ReadingPlan, Recording, GrowthRecord, Task, Bookmark, ReadingProgress
+  Book, ReadingPlan, Recording, GrowthRecord, Task, Bookmark, ReadingProgress, ChildProfile
 } from '@/types';
 import { books as mockBooks } from '@/data/books';
 import { tasks as mockTasks } from '@/data/tasks';
@@ -16,6 +16,12 @@ interface AppContextType {
   growthRecords: GrowthRecord[];
   bookmarks: Bookmark[];
   readingProgresses: ReadingProgress[];
+  children: ChildProfile[];
+  activeChildId: string | null;
+  addChild: (child: ChildProfile) => void;
+  removeChild: (childId: string) => void;
+  setActiveChild: (childId: string) => void;
+  getActiveChild: () => ChildProfile | null;
   toggleFavorite: (bookId: string) => void;
   setBrightness: (value: number) => void;
   setReadingPlan: (bookId: string, bookTitle: string) => void;
@@ -36,7 +42,7 @@ interface AppContextType {
   addNote: (bookId: string, pageIndex: number, content: string) => void;
   getNotes: (bookId: string) => ReadingProgress['notes'];
   getReadingProgress: (bookId: string) => ReadingProgress | undefined;
-  getGrowthStats: (monthKey?: string) => {
+  getGrowthStats: (monthKey?: string, childId?: string) => {
     totalDays: number;
     totalBooks: number;
     totalMinutes: number;
@@ -54,7 +60,9 @@ const STORAGE_KEYS = {
   GROWTH_RECORDS: 'storybook_growth_records',
   TASKS: 'storybook_tasks',
   BOOKMARKS: 'storybook_bookmarks',
-  READING_PROGRESSES: 'storybook_progresses'
+  READING_PROGRESSES: 'storybook_progresses',
+  CHILDREN: 'storybook_children',
+  ACTIVE_CHILD: 'storybook_active_child'
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -163,6 +171,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return [];
   });
 
+  const [children, setChildren] = useState<ChildProfile[]>(() => {
+    try {
+      const stored = Taro.getStorageSync(STORAGE_KEYS.CHILDREN);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error('[AppContext] 加载孩子列表失败:', e);
+    }
+    return [{ id: 'child_1', name: '宝贝', avatar: '👶', createdAt: new Date().toISOString() }];
+  });
+
+  const [activeChildId, setActiveChildId] = useState<string | null>(() => {
+    try {
+      const stored = Taro.getStorageSync(STORAGE_KEYS.ACTIVE_CHILD);
+      if (stored) return stored;
+    } catch (e) {
+      console.error('[AppContext] 加载活跃孩子失败:', e);
+    }
+    return 'child_1';
+  });
+
   useEffect(() => {
     try {
       const favorites = books.filter(b => b.isFavorite).map(b => b.id);
@@ -216,6 +244,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) { console.error(e); }
   }, [growthRecords]);
 
+  useEffect(() => {
+    try {
+      Taro.setStorageSync(STORAGE_KEYS.CHILDREN, JSON.stringify(children));
+    } catch (e) { console.error(e); }
+  }, [children]);
+
+  useEffect(() => {
+    try {
+      if (activeChildId) {
+        Taro.setStorageSync(STORAGE_KEYS.ACTIVE_CHILD, activeChildId);
+      }
+    } catch (e) { console.error(e); }
+  }, [activeChildId]);
+
   const toggleFavorite = useCallback((bookId: string) => {
     setBooks(prevBooks => prevBooks.map(book =>
       book.id === bookId ? { ...book, isFavorite: !book.isFavorite } : book
@@ -245,11 +287,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addGrowthRecord = useCallback((record: GrowthRecord) => {
     setGrowthRecords(prev => {
-      const exists = prev.find(r => r.date === record.date && r.bookId === record.bookId);
+      const enrichedRecord = { ...record, childId: activeChildId || 'child_1' };
+      const exists = prev.find(r => r.date === enrichedRecord.date && r.bookId === enrichedRecord.bookId);
       if (exists) return prev;
-      return [...prev, record];
+      return [...prev, enrichedRecord];
     });
-  }, []);
+  }, [activeChildId]);
 
   const completeTask = useCallback((taskId: string) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true } : t));
@@ -349,10 +392,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return readingProgresses.find(p => p.bookId === bookId);
   }, [readingProgresses]);
 
-  const getGrowthStats = useCallback((monthKey?: string) => {
-    const filteredRecords = monthKey
-      ? growthRecords.filter(r => r.date.startsWith(monthKey))
-      : growthRecords;
+  const addChild = useCallback((child: ChildProfile) => {
+    setChildren(prev => [...prev, child]);
+  }, []);
+
+  const removeChild = useCallback((childId: string) => {
+    setChildren(prev => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter(c => c.id !== childId);
+      if (activeChildId === childId) {
+        setActiveChildId(next.length > 0 ? next[0].id : null);
+      }
+      return next;
+    });
+  }, [activeChildId]);
+
+  const setActiveChild = useCallback((childId: string) => {
+    setActiveChildId(childId);
+  }, []);
+
+  const getActiveChild = useCallback(() => {
+    return children.find(c => c.id === activeChildId) || null;
+  }, [children, activeChildId]);
+
+  const getGrowthStats = useCallback((monthKey?: string, childId?: string) => {
+    const filteredRecords = growthRecords.filter(r =>
+      (!childId || r.childId === childId) && (!monthKey || r.date.startsWith(monthKey))
+    );
 
     const uniqueDays = new Set(filteredRecords.map(r => r.date));
     const uniqueBooks = new Set(filteredRecords.map(r => r.bookId));
@@ -402,6 +468,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         growthRecords,
         bookmarks,
         readingProgresses,
+        children,
+        activeChildId,
+        addChild,
+        removeChild,
+        setActiveChild,
+        getActiveChild,
         toggleFavorite,
         setBrightness,
         setReadingPlan,

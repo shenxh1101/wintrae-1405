@@ -22,6 +22,68 @@
   color: $color-text-secondary;
 }
 
+.childSelector {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-lg;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: $spacing-xs;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.childBtn {
+  @include button-reset;
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+  padding: $spacing-sm $spacing-md;
+  border-radius: $radius-button;
+  background: $color-bg-card;
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  white-space: nowrap;
+  box-shadow: $shadow-sm;
+  transition: all $transition-base;
+  border: 2rpx solid transparent;
+
+  &:active {
+    transform: scale(0.95);
+    background: $color-bg-hover;
+  }
+
+  &.childBtnActive {
+    border-color: $color-primary;
+    background: rgba(255, 138, 101, 0.1);
+    font-weight: $font-weight-medium;
+  }
+}
+
+.childAddBtn {
+  @include button-reset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background: $color-bg-card;
+  font-size: $font-size-xl;
+  color: $color-text-tertiary;
+  box-shadow: $shadow-sm;
+  transition: all $transition-base;
+  flex-shrink: 0;
+
+  &:active {
+    transform: scale(0.9);
+    background: $color-bg-hover;
+  }
+}
+
 .statsCards {
   display: flex;
   gap: $spacing-md;

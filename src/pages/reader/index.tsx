@@ -43,6 +43,8 @@ const ReaderPage: React.FC = () => {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteContent, setNoteContent] = useState('');
   const [pageHasNote, setPageHasNote] = useState(false);
+  const [speechAvailable, setSpeechAvailable] = useState(true);
+  const [progressRestored, setProgressRestored] = useState(false);
 
   const readStartTimeRef = useRef<number>(Date.now());
 
@@ -59,9 +61,26 @@ const ReaderPage: React.FC = () => {
     setIsFavorited(book.isFavorite);
   }, [book.isFavorite]);
 
+  const allCharacters = useMemo(() => {
+    const chars = new Set<string>();
+    pages.forEach(p => p.characters.forEach(c => chars.add(c)));
+    return Array.from(chars);
+  }, [pages]);
+
   useEffect(() => {
-    console.log('[Reader] 初始化角色语音，支持语音:', isSpeechSupported());
+    const supported = isSpeechSupported();
+    console.log('[Reader] 语音朗读支持:', supported);
+    setSpeechAvailable(supported);
     initCharacterVoices(allCharacters);
+
+    return () => {
+      console.log('[Reader] 页面卸载，停止朗读');
+      stopSpeaking();
+    };
+  }, [allCharacters]);
+
+  useEffect(() => {
+    if (progressRestored) return;
 
     const progress = getReadingProgress(book.id);
     console.log('[Reader] 获取阅读进度:', progress);
@@ -77,12 +96,8 @@ const ReaderPage: React.FC = () => {
         }
       });
     }
-
-    return () => {
-      console.log('[Reader] 页面卸载，停止朗读');
-      stopSpeaking();
-    };
-  }, [book.id, allCharacters, getReadingProgress, totalPages]);
+    setProgressRestored(true);
+  }, [book.id, progressRestored, getReadingProgress, totalPages]);
 
   useEffect(() => {
     console.log('[Reader] currentPage变化:', currentPage, ', 保存阅读进度');
@@ -179,9 +194,18 @@ const ReaderPage: React.FC = () => {
 
   const handleKeyWordClick = useCallback((keyword: KeyWord) => {
     console.log('[Reader] 点击关键词:', keyword.word);
-    speak(keyword.word, selectedCharacter || undefined);
-    showToastMessage(`正在朗读：${keyword.word}`);
-  }, [selectedCharacter, showToastMessage]);
+    if (!speechAvailable) {
+      showToastMessage('当前环境不支持语音朗读');
+      return;
+    }
+    speak(keyword.word, selectedCharacter || undefined).then(ok => {
+      if (ok) {
+        showToastMessage(`正在朗读：${keyword.word}`);
+      } else {
+        showToastMessage('语音朗读暂不可用，请检查设备设置');
+      }
+    });
+  }, [selectedCharacter, showToastMessage, speechAvailable]);
 
   const handleAnswerSelect = useCallback((index: number) => {
     if (!currentPageData.question) return;
@@ -215,10 +239,16 @@ const ReaderPage: React.FC = () => {
   const handleCharacterSelect = useCallback((character: string) => {
     console.log('[Reader] 选择角色语音:', character);
     setSelectedCharacter(character);
-    speak(`切换到${character}的声音啦`, character);
+    if (speechAvailable) {
+      speak(`切换到${character}的声音啦`, character).then(ok => {
+        if (!ok) {
+          showToastMessage(`${character} 的声音暂不可用`);
+        }
+      });
+    }
     showToastMessage(`切换到 ${character} 的声音`);
     setShowCharacterSelector(false);
-  }, [showToastMessage]);
+  }, [showToastMessage, speechAvailable]);
 
   const handleShowQuestion = useCallback(() => {
     if (currentPageData.question) {
@@ -264,9 +294,18 @@ const ReaderPage: React.FC = () => {
 
   const handleSpeakPage = useCallback(() => {
     console.log('[Reader] 朗读本页，角色:', selectedCharacter);
-    speak(currentPageData.text, selectedCharacter || undefined);
-    showToastMessage('正在朗读本页...');
-  }, [currentPageData, selectedCharacter, showToastMessage]);
+    if (!speechAvailable) {
+      showToastMessage('当前环境不支持语音朗读');
+      return;
+    }
+    speak(currentPageData.text, selectedCharacter || undefined).then(ok => {
+      if (ok) {
+        showToastMessage('正在朗读本页...');
+      } else {
+        showToastMessage('语音朗读暂不可用，请检查设备设置');
+      }
+    });
+  }, [currentPageData, selectedCharacter, showToastMessage, speechAvailable]);
 
   const handleBookmarkToggle = useCallback(() => {
     if (pageHasBookmark) {
@@ -361,12 +400,6 @@ const ReaderPage: React.FC = () => {
   const progress = useMemo(() => {
     return ((currentPage + 1) / pages.length) * 100;
   }, [currentPage, pages.length]);
-
-  const allCharacters = useMemo(() => {
-    const chars = new Set<string>();
-    pages.forEach(p => p.characters.forEach(c => chars.add(c)));
-    return Array.from(chars);
-  }, [pages]);
 
   const brightnessStyle = useMemo(() => {
     return {

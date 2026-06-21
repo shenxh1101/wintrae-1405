@@ -109,6 +109,7 @@ export interface GrowthRecord {
   completed: boolean;
   themes?: string[];
   characters?: string[];
+  childId?: string;
 }
 
 export interface GrowthStats {
@@ -145,4 +146,12 @@ export interface ReadingProgress {
   totalPages: number;
   updatedAt: string;
   notes: { pageIndex: number; content: string; createdAt: string }[];
+}
+
+export interface ChildProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  birthYear?: number;
+  createdAt: string;
 }

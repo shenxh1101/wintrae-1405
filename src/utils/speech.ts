@@ -5,23 +5,15 @@ export interface SpeakOptions {
   rate?: number;
   pitch?: number;
   volume?: number;
-  voiceIndex?: number;
 }
 
-export interface SpeechVoices {
-  voices: SpeechSynthesisVoice[];
-  selectedIndex: number;
-}
-
-let speechSynthesisInst: SpeechSynthesis | null = null;
-let innerAudioInst: any = null;
 let characterVoiceMap: Record<string, { rate: number; pitch: number }> = {};
+let webAudioElement: HTMLAudioElement | null = null;
 
 const getWebSpeech = (): SpeechSynthesis | null => {
   if (typeof window === 'undefined') return null;
   if ('speechSynthesis' in window) {
-    speechSynthesisInst = window.speechSynthesis;
-    return speechSynthesisInst;
+    return window.speechSynthesis;
   }
   return null;
 };
@@ -43,98 +35,137 @@ export const initCharacterVoices = (characters: string[]) => {
   console.log('[Speech] 角色语音映射:', characterVoiceMap);
 };
 
-export const speakWeb = (options: SpeakOptions): Promise<void> => {
+const loadVoices = (): Promise<SpeechSynthesisVoice[]> => {
   return new Promise((resolve) => {
     const synth = getWebSpeech();
-    if (!synth) {
-      console.warn('[Speech] Web Speech API 不可用');
-      resolve();
-      return;
-    }
+    if (!synth) { resolve([]); return; }
 
-    try {
-      synth.cancel();
+    let voices = synth.getVoices();
+    if (voices.length > 0) { resolve(voices); return; }
 
-      const utter = new SpeechSynthesisUtterance(options.text);
-      utter.lang = 'zh-CN';
-      utter.rate = options.rate ?? 1;
-      utter.pitch = options.pitch ?? 1;
-      utter.volume = options.volume ?? 1;
+    const onVoicesChanged = () => {
+      voices = synth.getVoices();
+      resolve(voices);
+      synth.removeEventListener('voiceschanged', onVoicesChanged);
+    };
+    synth.addEventListener('voiceschanged', onVoicesChanged);
 
-      const voices = synth.getVoices();
-      const zhVoice = voices.find(v => v.lang.toLowerCase().includes('zh') || v.lang.includes('CN'));
-      if (zhVoice) {
-        utter.voice = zhVoice;
-      }
-
-      utter.onend = () => {
-        console.log('[Speech] 朗读完成');
-        resolve();
-      };
-      utter.onerror = (e) => {
-        console.error('[Speech] 朗读出错:', e);
-        resolve();
-      };
-
-      synth.speak(utter);
-      console.log('[Speech] 开始朗读:', options.text, 'rate:', utter.rate, 'pitch:', utter.pitch);
-    } catch (e) {
-      console.error('[Speech] 朗读异常:', e);
-      resolve();
-    }
+    setTimeout(() => {
+      synth.removeEventListener('voiceschanged', onVoicesChanged);
+      resolve(synth.getVoices());
+    }, 2000);
   });
 };
 
-export const speakMiniProgram = (options: SpeakOptions): Promise<void> => {
-  return new Promise((resolve) => {
-    try {
-      if (innerAudioInst) {
-        try { innerAudioInst.stop(); } catch (e) {}
-        try { innerAudioInst.destroy(); } catch (e) {}
-        innerAudioInst = null;
-      }
+export const speakWeb = async (options: SpeakOptions): Promise<boolean> => {
+  const synth = getWebSpeech();
+  if (!synth) {
+    console.warn('[Speech] Web Speech API 不可用');
+    return false;
+  }
 
-      const plugin = Taro.requirePlugin && Taro.requirePlugin('WechatSI');
-      if (plugin && plugin.textToSpeech) {
-        const manager = plugin.getRecordRecognitionManager && plugin.getRecordRecognitionManager();
+  try {
+    synth.cancel();
+
+    const voices = await loadVoices();
+    const utter = new SpeechSynthesisUtterance(options.text);
+    utter.lang = 'zh-CN';
+    utter.rate = options.rate ?? 1;
+    utter.pitch = options.pitch ?? 1;
+    utter.volume = options.volume ?? 1;
+
+    const zhVoice = voices.find(v =>
+      v.lang === 'zh-CN' || v.lang === 'zh_CN' || v.lang === 'zh-Hans-CN'
+    ) || voices.find(v =>
+      v.lang.toLowerCase().includes('zh') || v.lang.includes('CN')
+    );
+    if (zhVoice) {
+      utter.voice = zhVoice;
+      console.log('[Speech] 使用语音:', zhVoice.name, zhVoice.lang);
+    }
+
+    return new Promise((resolve) => {
+      utter.onend = () => {
+        console.log('[Speech] Web朗读完成');
+        resolve(true);
+      };
+      utter.onerror = (e) => {
+        console.error('[Speech] Web朗读出错:', e);
+        resolve(false);
+      };
+      synth.speak(utter);
+      console.log('[Speech] 开始Web朗读:', options.text.substring(0, 20), '...');
+    });
+  } catch (e) {
+    console.error('[Speech] Web朗读异常:', e);
+    return false;
+  }
+};
+
+const speakMiniProgramInnerAudio = async (text: string): Promise<boolean> => {
+  try {
+    const plugin = Taro.requirePlugin && Taro.requirePlugin('WechatSI');
+    if (plugin && plugin.textToSpeech) {
+      return new Promise((resolve) => {
         plugin.textToSpeech({
           lang: 'zh_CN',
           tts: true,
-          content: options.text,
+          content: text,
           success: (res: any) => {
-            console.log('[Speech] 微信插件TTS成功:', res);
             if (res.filename) {
               const audio = Taro.createInnerAudioContext();
-              innerAudioInst = audio;
               audio.src = res.filename;
-              audio.onEnded(() => resolve());
-              audio.onError(() => resolve());
+              audio.onEnded(() => { resolve(true); });
+              audio.onError(() => { resolve(false); });
               audio.play();
             } else {
-              resolve();
+              resolve(false);
             }
           },
-          fail: (err: any) => {
-            console.warn('[Speech] 微信插件TTS失败:', err, '降级到振动提示');
-            Taro.vibrateShort({ type: 'medium' });
-            resolve();
-          }
+          fail: () => { resolve(false); }
         });
-        return;
-      }
-
-      console.warn('[Speech] 小程序TTS插件不可用，降级振动提示');
-      Taro.vibrateShort({ type: 'medium' });
-      resolve();
-    } catch (e) {
-      console.error('[Speech] 小程序朗读异常:', e);
-      resolve();
+      });
     }
-  });
+  } catch (e) {
+    console.warn('[Speech] 微信TTS插件不可用:', e);
+  }
+  return false;
 };
 
-export const speak = async (text: string, character?: string): Promise<void> => {
-  if (!text || !text.trim()) return;
+const speakMiniProgramAudioContext = async (text: string): Promise<boolean> => {
+  try {
+    if (typeof wx === 'undefined' || !wx.createInnerAudioContext) return false;
+
+    const encodedText = encodeURIComponent(text);
+    const audioUrl = `https://tts.baidu.com/text2audio?lan=zh&ie=UTF-8&spd=5&text=${encodedText}`;
+
+    return new Promise((resolve) => {
+      const audio = Taro.createInnerAudioContext();
+      audio.src = audioUrl;
+      audio.onEnded(() => { resolve(true); });
+      audio.onError(() => { resolve(false); });
+      audio.onPlay(() => { console.log('[Speech] 网络TTS播放中'); });
+      audio.play();
+    });
+  } catch (e) {
+    console.warn('[Speech] 网络TTS失败:', e);
+    return false;
+  }
+};
+
+export const speakMiniProgram = async (options: SpeakOptions): Promise<boolean> => {
+  const pluginResult = await speakMiniProgramInnerAudio(options.text);
+  if (pluginResult) return true;
+
+  const networkResult = await speakMiniProgramAudioContext(options.text);
+  if (networkResult) return true;
+
+  console.warn('[Speech] 所有小程序TTS方案均失败');
+  return false;
+};
+
+export const speak = async (text: string, character?: string): Promise<boolean> => {
+  if (!text || !text.trim()) return false;
 
   let rate = 1;
   let pitch = 1;
@@ -142,16 +173,15 @@ export const speak = async (text: string, character?: string): Promise<void> => 
   if (character && characterVoiceMap[character]) {
     rate = characterVoiceMap[character].rate;
     pitch = characterVoiceMap[character].pitch;
-    console.log('[Speech] 使用角色语音:', character, 'rate:', rate, 'pitch:', pitch);
   }
 
   const options: SpeakOptions = { text: text.trim(), rate, pitch };
   const env = Taro.getEnv();
 
   if (env === Taro.ENV_TYPE.WEB) {
-    await speakWeb(options);
+    return await speakWeb(options);
   } else {
-    await speakMiniProgram(options);
+    return await speakMiniProgram(options);
   }
 };
 
@@ -161,14 +191,10 @@ export const stopSpeaking = () => {
     const synth = getWebSpeech();
     if (synth) {
       synth.cancel();
-      console.log('[Speech] 停止Web朗读');
     }
-  } else {
-    if (innerAudioInst) {
-      try { innerAudioInst.stop(); } catch (e) {}
-      try { innerAudioInst.destroy(); } catch (e) {}
-      innerAudioInst = null;
-      console.log('[Speech] 停止小程序朗读');
+    if (webAudioElement) {
+      webAudioElement.pause();
+      webAudioElement = null;
     }
   }
 };

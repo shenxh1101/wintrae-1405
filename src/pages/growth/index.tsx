@@ -5,9 +5,10 @@ import classnames from 'classnames';
 import styles from './index.module.scss';
 import { useApp } from '@/store/AppContext';
 import { formatDate } from '@/utils';
+import { generateReportCanvas, downloadImage, saveImageToAlbum } from '@/utils/reportCanvas';
 
 const GrowthPage: React.FC = () => {
-  const { eyeCareMode, growthRecords, getGrowthStats, books } = useApp();
+  const { eyeCareMode, growthRecords, getGrowthStats, books, children, activeChildId, addChild, removeChild, setActiveChild, getActiveChild } = useApp();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -18,7 +19,7 @@ const GrowthPage: React.FC = () => {
     return `${year}-${month}`;
   }, [selectedMonth]);
 
-  const stats = getGrowthStats(monthKey);
+  const stats = getGrowthStats(monthKey, activeChildId || undefined);
 
   const canGoNext = useMemo(() => {
     const today = new Date();
@@ -69,7 +70,9 @@ const GrowthPage: React.FC = () => {
       days.push({ day: null, hasRecord: false, isToday: false });
     }
 
-    const monthRecords = growthRecords.filter(r => r.date.startsWith(monthKey));
+    const monthRecords = growthRecords.filter(r =>
+      r.date.startsWith(monthKey) && (!activeChildId || r.childId === activeChildId)
+    );
     const recordSet = new Set(monthRecords.map(r => r.date));
 
     for (let i = 1; i <= daysInMonth; i++) {
@@ -86,14 +89,16 @@ const GrowthPage: React.FC = () => {
     }
 
     return days;
-  }, [growthRecords, selectedMonth, monthKey]);
+  }, [growthRecords, selectedMonth, monthKey, activeChildId]);
 
   const streakDays = useMemo(() => {
     let streak = 0;
     const year = selectedMonth.getFullYear();
     const month = selectedMonth.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const monthRecords = growthRecords.filter(r => r.date.startsWith(monthKey));
+    const monthRecords = growthRecords.filter(r =>
+      r.date.startsWith(monthKey) && (!activeChildId || r.childId === activeChildId)
+    );
     const recordSet = new Set(monthRecords.map(r => r.date));
 
     let endDay = daysInMonth;
@@ -114,18 +119,18 @@ const GrowthPage: React.FC = () => {
       }
     }
     return streak;
-  }, [growthRecords, selectedMonth, monthKey]);
+  }, [growthRecords, selectedMonth, monthKey, activeChildId]);
 
   const sortedRecords = useMemo(() => {
     return growthRecords
-      .filter(r => r.date.startsWith(monthKey))
+      .filter(r => r.date.startsWith(monthKey) && (!activeChildId || r.childId === activeChildId))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [growthRecords, monthKey]);
+  }, [growthRecords, monthKey, activeChildId]);
 
   const monthlyBooks = useMemo(() => {
     const seen = new Map<string, { bookId: string; bookTitle: string; cover: string }>();
     growthRecords
-      .filter(r => r.date.startsWith(monthKey))
+      .filter(r => r.date.startsWith(monthKey) && (!activeChildId || r.childId === activeChildId))
       .forEach(record => {
         if (!seen.has(record.bookId)) {
           const book = books.find(b => b.id === record.bookId);
@@ -137,7 +142,7 @@ const GrowthPage: React.FC = () => {
         }
       });
     return Array.from(seen.values());
-  }, [growthRecords, books, monthKey]);
+  }, [growthRecords, books, monthKey, activeChildId]);
 
   const encouragement = useMemo(() => {
     const { totalDays, totalBooks, totalMinutes } = stats;
@@ -241,20 +246,25 @@ const GrowthPage: React.FC = () => {
           });
         }
       } else {
+        const reportData = {
+          childName: getActiveChild()?.name || '宝贝',
+          monthLabel: displayMonth,
+          totalDays: stats.totalDays,
+          totalBooks: stats.totalBooks,
+          totalMinutes: stats.totalMinutes,
+          bookTitles: sortedRecords.map(r => r.bookTitle).filter((v, i, a) => a.indexOf(v) === i),
+          themes: stats.favoriteThemes,
+          characters: stats.favoriteCharacters,
+          encouragement
+        };
+        const dataUrl = await generateReportCanvas(reportData);
         Taro.hideLoading();
-        setTimeout(() => {
-          Taro.showModal({
-            title: '保存到相册',
-            content: '长按下方卡片可保存到相册，或使用手机截图功能哦~',
-            showCancel: false,
-            confirmText: '知道了'
-          });
-          Taro.showToast({
-            title: '长按卡片可保存~',
-            icon: 'none',
-            duration: 2000
-          });
-        }, 100);
+        if (dataUrl) {
+          downloadImage(dataUrl, '阅读小报.png');
+          Taro.showToast({ title: '保存成功！', icon: 'success' });
+        } else {
+          Taro.showToast({ title: '生成失败，请重试', icon: 'none' });
+        }
       }
     } catch (e) {
       console.error('[Growth] 保存异常', e);
@@ -266,7 +276,7 @@ const GrowthPage: React.FC = () => {
     }
   };
 
-  const handleShareToFriend = () => {
+  const handleShareToFriend = async () => {
     console.log('[Growth] 分享给朋友');
     const env = Taro.getEnv();
 
@@ -288,11 +298,33 @@ const GrowthPage: React.FC = () => {
       }
     } else {
       try {
-        Taro.showShareImageMenu({});
+        const reportData = {
+          childName: getActiveChild()?.name || '宝贝',
+          monthLabel: displayMonth,
+          totalDays: stats.totalDays,
+          totalBooks: stats.totalBooks,
+          totalMinutes: stats.totalMinutes,
+          bookTitles: sortedRecords.map(r => r.bookTitle).filter((v, i, a) => a.indexOf(v) === i),
+          themes: stats.favoriteThemes,
+          characters: stats.favoriteCharacters,
+          encouragement
+        };
+        const dataUrl = await generateReportCanvas(reportData);
+        if (dataUrl && navigator.share) {
+          await navigator.share({
+            title: `${getActiveChild()?.name || '宝贝'}的阅读小报 - ${displayMonth}`,
+            url: dataUrl
+          });
+        } else if (dataUrl) {
+          downloadImage(dataUrl, '阅读小报.png');
+          Taro.showToast({ title: '已下载，可发送给好友~', icon: 'none' });
+        } else {
+          Taro.showToast({ title: '生成失败，请重试', icon: 'none' });
+        }
       } catch (e) {
-        console.warn('[Growth] H5分享菜单失败', e);
+        console.warn('[Growth] H5分享失败', e);
         Taro.showToast({
-          title: '点击右上角...分享或截图',
+          title: '截图后分享给好友吧~',
           icon: 'none',
           duration: 2000
         });
@@ -305,7 +337,7 @@ const GrowthPage: React.FC = () => {
   const topThemes = stats.favoriteThemes.slice(0, 3);
   const topChars = stats.favoriteCharacters.slice(0, 3);
   const medals = ['🥇', '🥈', '🥉'];
-  const childName = '宝贝';
+  const childName = getActiveChild()?.name || '宝贝';
 
   return (
     <View
@@ -315,6 +347,61 @@ const GrowthPage: React.FC = () => {
       <View className={styles.header}>
         <Text className={styles.title}>成长记录 🌟</Text>
         <Text className={styles.subtitle}>见证宝贝的每一次进步</Text>
+      </View>
+
+      <View className={styles.childSelector}>
+        {children.map(child => (
+          <Button
+            key={child.id}
+            className={classnames(
+              styles.childBtn,
+              activeChildId === child.id && styles.childBtnActive
+            )}
+            onClick={() => setActiveChild(child.id)}
+            onLongPress={() => {
+              if (children.length <= 1) {
+                Taro.showToast({ title: '至少保留一个宝贝哦~', icon: 'none' });
+                return;
+              }
+              Taro.showModal({
+                title: '确认删除',
+                content: `确定删除「${child.name}」吗？相关记录不会丢失。`,
+                success: (res) => {
+                  if (res.confirm) {
+                    removeChild(child.id);
+                  }
+                }
+              });
+            }}
+          >
+            <Text>{child.avatar} {child.name}</Text>
+          </Button>
+        ))}
+        <Button
+          className={styles.childAddBtn}
+          onClick={() => {
+            Taro.showModal({
+              title: '添加宝贝',
+              editable: true,
+              placeholderText: '请输入宝贝的名字',
+              success: (res) => {
+                if (res.confirm && res.content?.trim()) {
+                  const name = res.content.trim();
+                  const avatars = ['🧒', '👧', '🧒🏻', '👧🏻', '👦', '👶', '🧒🏽', '👧🏽'];
+                  const avatar = avatars[children.length % avatars.length];
+                  addChild({
+                    id: `child_${Date.now()}`,
+                    name,
+                    avatar,
+                    createdAt: new Date().toISOString()
+                  });
+                }
+              }
+            });
+          }}
+        >
+          +
+        </Button>
       </View>
 
       <View className={styles.monthSwitcher}>
