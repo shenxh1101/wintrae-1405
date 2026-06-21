@@ -87,6 +87,7 @@ export interface Task {
   };
   colorPalettes?: ColorPalette[];
   colorZones?: ColorZone[];
+  linkedRecordingId?: string;
 }
 
 export interface Recording {

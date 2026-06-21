@@ -48,6 +48,7 @@
 }
 
 .planCover {
+  position: relative;
   width: 100rpx;
   height: 130rpx;
   border-radius: $radius-sm;
@@ -79,6 +80,58 @@
   @include button-reset;
   height: $button-height-sm;
   padding: 0 $spacing-xl;
+  border-radius: $radius-button;
+  background: rgba(255, 255, 255, 0.25);
+  color: $color-text-white;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  transition: all $transition-base;
+
+  &:active {
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0.95);
+  }
+}
+
+.planCompleted {
+  background: linear-gradient(135deg, #81C784 0%, #66BB6A 100%) !important;
+}
+
+.completedTag {
+  background: rgba(255, 255, 255, 0.3);
+  color: $color-text-white;
+  font-size: $font-size-sm;
+  padding: 4rpx 16rpx;
+  border-radius: 16rpx;
+  font-weight: $font-weight-semibold;
+}
+
+.completedOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56rpx;
+  color: #fff;
+  border-radius: $radius-md;
+}
+
+.completedHint {
+  font-size: $font-size-sm;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: $spacing-xs;
+}
+
+.changePlanBtn {
+  @include button-reset;
+  width: 100%;
+  margin-top: $spacing-md;
+  height: $button-height-sm;
   border-radius: $radius-button;
   background: rgba(255, 255, 255, 0.25);
   color: $color-text-white;

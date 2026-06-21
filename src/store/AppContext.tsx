@@ -24,6 +24,7 @@ interface AppContextType {
   resetTask: (taskId: string) => void;
   updateTaskTargets: (taskId: string, targets: Task['findScene']['targets']) => void;
   updateTaskColorZones: (taskId: string, zones: Task['colorZones']) => void;
+  linkRecordingToTask: (taskId: string, recordingId: string | null) => void;
   getGrowthStats: () => {
     totalDays: number;
     totalBooks: number;
@@ -283,6 +284,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   }, []);
 
+  const linkRecordingToTask = useCallback((taskId: string, recordingId: string | null) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      return { ...t, linkedRecordingId: recordingId || undefined };
+    }));
+  }, []);
+
   const getGrowthStats = useCallback(() => {
     const uniqueDays = new Set(growthRecords.map(r => r.date));
     const uniqueBooks = new Set(growthRecords.map(r => r.bookId));
@@ -344,6 +352,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         resetTask,
         updateTaskTargets,
         updateTaskColorZones,
+        linkRecordingToTask,
         getGrowthStats
       }}
     >

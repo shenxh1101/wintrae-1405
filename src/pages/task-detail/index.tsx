@@ -20,7 +20,9 @@ const TaskDetailPage: React.FC = () => {
     completeTask,
     resetTask,
     updateTaskTargets,
-    updateTaskColorZones
+    updateTaskColorZones,
+    linkRecordingToTask,
+    recordings
   } = useApp();
 
   const taskId = router.params.id;
@@ -32,6 +34,7 @@ const TaskDetailPage: React.FC = () => {
 
   const [retellText, setRetellText] = useState('');
   const [selectedPaletteId, setSelectedPaletteId] = useState<string | null>(null);
+  const [showRecordingPicker, setShowRecordingPicker] = useState(false);
   const [emotionResult, setEmotionResult] = useState<{
     status: 'idle' | 'correct' | 'wrong';
     option?: EmotionOption;
@@ -60,8 +63,10 @@ const TaskDetailPage: React.FC = () => {
 
     switch (task.type) {
       case 'retell':
-        const enabled = retellText.trim().length >= 10;
-        console.log('[TaskDetail] 复述完成条件检查:', enabled, '文本长度:', retellText.trim().length);
+        const textEnabled = retellText.trim().length >= 10;
+        const hasLinkedRecording = !!task.linkedRecordingId;
+        const enabled = textEnabled || hasLinkedRecording;
+        console.log('[TaskDetail] 复述完成条件检查:', enabled, '文本长度:', retellText.trim().length, '关联录音:', hasLinkedRecording);
         return enabled;
       case 'find':
         const allFound = task.findScene?.targets.every(t => t.found) ?? false;
@@ -82,7 +87,7 @@ const TaskDetailPage: React.FC = () => {
       default:
         return false;
     }
-  }, [task, retellText, emotionResult.status]);
+  }, [task, retellText, emotionResult.status, task?.linkedRecordingId]);
 
   const foundCount = useMemo(() => {
     if (!task?.findScene) return 0;
@@ -195,6 +200,11 @@ const TaskDetailPage: React.FC = () => {
     updateTaskColorZones(task.id, newZones);
   };
 
+  const linkedRecording = useMemo(() => {
+    if (!task?.linkedRecordingId) return null;
+    return recordings.find(r => r.id === task.linkedRecordingId) || null;
+  }, [task?.linkedRecordingId, recordings]);
+
   const renderRetellTask = () => {
     if (!task) return null;
     return (
@@ -221,12 +231,90 @@ const TaskDetailPage: React.FC = () => {
           />
 
           <View className={styles.recordHint}>
-            🎙️ 不想打字？也可以去录音室录一段音频哦~
+            🎙️ 不想打字？录一段音频或者选一段已保存的录音吧~
           </View>
 
-          <Button className={styles.goRecordBtn} onClick={handleGoRecord}>
-            🎤 去录音室录一段
-          </Button>
+          {linkedRecording ? (
+            <View className={styles.linkedRecording}>
+              <View className={styles.linkedInfo}>
+                <Text className={styles.linkedIcon}>🎙️</Text>
+                <View className={styles.linkedDetail}>
+                  <Text className={styles.linkedTitle}>{linkedRecording.title}</Text>
+                  <Text className={styles.linkedDuration}>
+                    {Math.floor(linkedRecording.duration / 60)}:{String(linkedRecording.duration % 60).padStart(2, '0')}
+                  </Text>
+                </View>
+              </View>
+              <Button
+                className={styles.unlinkBtn}
+                onClick={() => {
+                  console.log('[TaskDetail] 取消关联录音');
+                  linkRecordingToTask(task.id, null);
+                }}
+              >
+                ✕ 取消关联
+              </Button>
+            </View>
+          ) : (
+            <View className={styles.recordingActions}>
+              <Button className={styles.goRecordBtn} onClick={handleGoRecord}>
+                🎤 去录音室录一段
+              </Button>
+              {recordings.length > 0 && (
+                <Button
+                  className={styles.selectRecordingBtn}
+                  onClick={() => {
+                    console.log('[TaskDetail] 打开录音选择器');
+                    setShowRecordingPicker(true);
+                  }}
+                >
+                  📋 选择已有录音
+                </Button>
+              )}
+            </View>
+          )}
+
+          {showRecordingPicker && (
+            <View className={styles.recordingPicker}>
+              <View className={styles.pickerHeader}>
+                <Text className={styles.pickerTitle}>选择一段录音</Text>
+                <Button
+                  className={styles.pickerClose}
+                  onClick={() => setShowRecordingPicker(false)}
+                >
+                  ✕
+                </Button>
+              </View>
+              {recordings.length > 0 ? (
+                <View className={styles.pickerList}>
+                  {recordings.map(rec => (
+                    <Button
+                      key={rec.id}
+                      className={classnames(
+                        styles.pickerItem,
+                        task.linkedRecordingId === rec.id && styles.active
+                      )}
+                      onClick={() => {
+                        console.log('[TaskDetail] 关联录音:', rec.title);
+                        linkRecordingToTask(task.id, rec.id);
+                        setShowRecordingPicker(false);
+                        Taro.showToast({ title: '已关联录音', icon: 'success' });
+                      }}
+                    >
+                      <Text className={styles.pickerItemTitle}>{rec.title}</Text>
+                      <Text className={styles.pickerItemDuration}>
+                        {Math.floor(rec.duration / 60)}:{String(rec.duration % 60).padStart(2, '0')}
+                      </Text>
+                    </Button>
+                  ))}
+                </View>
+              ) : (
+                <View className={styles.pickerEmpty}>
+                  还没有录音，先去录音室录一段吧~
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </View>
     );

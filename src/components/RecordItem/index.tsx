@@ -24,13 +24,15 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
   const animationFrameRef = useRef<number | null>(null);
   const innerAudioRef = useRef<any>(null);
   const updateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isPlayingRef = useRef(false);
 
-  const cleanupWebAudio = useCallback(() => {
+  const stopWebAudioSource = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
     if (sourceRef.current) {
+      try { sourceRef.current.onended = null; } catch (e) {}
       try { sourceRef.current.stop(); } catch (e) {}
       sourceRef.current = null;
     }
@@ -48,15 +50,16 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
     }
   }, []);
 
-  const cleanup = useCallback(() => {
-    cleanupWebAudio();
+  const fullCleanup = useCallback(() => {
+    stopWebAudioSource();
     cleanupInnerAudio();
-  }, [cleanupWebAudio, cleanupInnerAudio]);
+    isPlayingRef.current = false;
+  }, [stopWebAudioSource, cleanupInnerAudio]);
 
   const playWebAudio = useCallback(async () => {
     try {
       if (!audioBufferRef.current) {
-        if (!audioCtxRef.current) {
+        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
           audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
         const response = await fetch(recording.filePath);
@@ -64,32 +67,38 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
         audioBufferRef.current = await audioCtxRef.current.decodeAudioData(arrayBuffer.slice(0));
       }
 
-      if (sourceRef.current) {
-        try { sourceRef.current.stop(); } catch (e) {}
+      stopWebAudioSource();
+
+      if (audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume();
       }
 
-      const source = audioCtxRef.current!.createBufferSource();
+      const source = audioCtxRef.current.createBufferSource();
       source.buffer = audioBufferRef.current;
-      source.connect(audioCtxRef.current!.destination);
+      source.connect(audioCtxRef.current.destination);
       sourceRef.current = source;
 
       const startOffset = pausedAtRef.current;
-      startTimeRef.current = audioCtxRef.current!.currentTime - startOffset;
+      startTimeRef.current = audioCtxRef.current.currentTime - startOffset;
 
       source.onended = () => {
-        setIsPlaying(false);
-        setCurrentTime(0);
-        setProgress(0);
-        pausedAtRef.current = 0;
-        cleanupWebAudio();
+        if (isPlayingRef.current) {
+          setIsPlaying(false);
+          setCurrentTime(0);
+          setProgress(0);
+          pausedAtRef.current = 0;
+          isPlayingRef.current = false;
+        }
       };
 
       source.start(0, startOffset);
+      isPlayingRef.current = true;
+      setIsPlaying(true);
 
+      const duration = audioBufferRef.current.duration;
       const updateProgress = () => {
-        if (audioCtxRef.current && audioBufferRef.current) {
+        if (audioCtxRef.current && isPlayingRef.current) {
           const elapsed = audioCtxRef.current.currentTime - startTimeRef.current;
-          const duration = audioBufferRef.current.duration;
           if (elapsed <= duration) {
             setCurrentTime(elapsed);
             setProgress((elapsed / duration) * 100);
@@ -98,29 +107,35 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
         }
       };
       updateProgress();
-
-      setIsPlaying(true);
     } catch (error) {
       console.error('[RecordItem] WebAudio播放失败:', error);
       Taro.showToast({ title: '播放失败', icon: 'none' });
       setIsPlaying(false);
+      isPlayingRef.current = false;
     }
-  }, [recording.filePath, cleanupWebAudio]);
+  }, [recording.filePath, stopWebAudioSource]);
 
   const pauseWebAudio = useCallback(() => {
-    if (audioCtxRef.current && audioBufferRef.current && sourceRef.current) {
+    if (audioCtxRef.current && audioBufferRef.current) {
       const elapsed = audioCtxRef.current.currentTime - startTimeRef.current;
       pausedAtRef.current = Math.min(elapsed, audioBufferRef.current.duration);
-      cleanupWebAudio();
+      stopWebAudioSource();
       setIsPlaying(false);
+      isPlayingRef.current = false;
     }
-  }, [cleanupWebAudio]);
+  }, [stopWebAudioSource]);
 
   const playInnerAudio = useCallback(() => {
     try {
+      cleanupInnerAudio();
+
       const audio = Taro.createInnerAudioContext();
       innerAudioRef.current = audio;
       audio.src = recording.filePath;
+
+      if (pausedAtRef.current > 0) {
+        audio.startTime = pausedAtRef.current;
+      }
 
       audio.onCanplay(() => {
         audio.play();
@@ -128,16 +143,27 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
 
       audio.onPlay(() => {
         setIsPlaying(true);
+        isPlayingRef.current = true;
       });
 
       audio.onPause(() => {
+        if (innerAudioRef.current) {
+          pausedAtRef.current = innerAudioRef.current.currentTime;
+        }
         setIsPlaying(false);
+        isPlayingRef.current = false;
+        if (updateIntervalRef.current) {
+          clearInterval(updateIntervalRef.current);
+          updateIntervalRef.current = null;
+        }
       });
 
       audio.onStop(() => {
         setIsPlaying(false);
         setCurrentTime(0);
         setProgress(0);
+        pausedAtRef.current = 0;
+        isPlayingRef.current = false;
         cleanupInnerAudio();
       });
 
@@ -145,6 +171,8 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
         setIsPlaying(false);
         setCurrentTime(0);
         setProgress(0);
+        pausedAtRef.current = 0;
+        isPlayingRef.current = false;
         cleanupInnerAudio();
       });
 
@@ -152,11 +180,12 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
         console.error('[RecordItem] InnerAudio错误:', err);
         Taro.showToast({ title: '播放失败', icon: 'none' });
         setIsPlaying(false);
+        isPlayingRef.current = false;
         cleanupInnerAudio();
       });
 
       updateIntervalRef.current = setInterval(() => {
-        if (audio && audio.duration) {
+        if (audio && audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
           setCurrentTime(audio.currentTime);
           setProgress((audio.currentTime / audio.duration) * 100);
         }
@@ -165,11 +194,13 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
       console.error('[RecordItem] InnerAudio播放失败:', error);
       Taro.showToast({ title: '播放失败', icon: 'none' });
       setIsPlaying(false);
+      isPlayingRef.current = false;
     }
   }, [recording.filePath, cleanupInnerAudio]);
 
   const pauseInnerAudio = useCallback(() => {
     if (innerAudioRef.current) {
+      pausedAtRef.current = innerAudioRef.current.currentTime;
       innerAudioRef.current.pause();
     }
   }, []);
@@ -192,6 +223,15 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
   };
 
   const handleDelete = () => {
+    const wasPlaying = isPlayingRef.current;
+    if (wasPlaying) {
+      fullCleanup();
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setProgress(0);
+      pausedAtRef.current = 0;
+    }
+
     Taro.showModal({
       title: '删除录音',
       content: `确定删除「${recording.title}」吗？`,
@@ -199,7 +239,6 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
       confirmColor: '#FF5252',
       success: (res) => {
         if (res.confirm) {
-          cleanup();
           onDelete(recording.id);
         }
       }
@@ -208,9 +247,12 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
 
   useEffect(() => {
     return () => {
-      cleanup();
+      fullCleanup();
     };
-  }, [cleanup]);
+  }, [fullCleanup]);
+
+  const displayDuration = Math.max(recording.duration, 0);
+  const displayCurrentTime = Math.min(Math.round(currentTime), displayDuration);
 
   return (
     <View className={styles.recordItem}>
@@ -229,10 +271,10 @@ const RecordItem: React.FC<RecordItemProps> = ({ recording, onDelete }) => {
 
         <View className={styles.timeRow}>
           <Text className={styles.timeLabel}>
-            {formatDuration(Math.round(currentTime))}
+            {formatDuration(displayCurrentTime)}
           </Text>
           <Text className={styles.timeLabel}>
-            {formatDuration(recording.duration)}
+            {formatDuration(displayDuration)}
           </Text>
         </View>
       </View>

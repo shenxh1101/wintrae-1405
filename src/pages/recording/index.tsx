@@ -26,6 +26,7 @@ const RecordingPage: React.FC = () => {
     duration: number;
   } | null>(null);
 
+  const recordingTimeRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const waveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recorderManagerRef = useRef<any>(null);
@@ -118,15 +119,17 @@ const RecordingPage: React.FC = () => {
       };
 
       mediaRecorder.onstop = () => {
-        console.log('[Recording] H5录音结束，数据块数:', audioChunksRef.current.length);
-        const blob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+        const chunks = [...audioChunksRef.current];
+        console.log('[Recording] H5录音结束，数据块数:', chunks.length);
+        const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+        const capturedDuration = recordingTimeRef.current;
+        console.log('[Recording] 捕获的录音时长:', capturedDuration, '秒');
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = reader.result as string;
-          const duration = recordingTime;
           setPendingAudio({
             filePath: base64,
-            duration
+            duration: capturedDuration
           });
           setShowTitleModal(true);
           cleanup();
@@ -145,7 +148,7 @@ const RecordingPage: React.FC = () => {
       });
       return false;
     }
-  }, [recordingTime, cleanup, startWaveformAnimation]);
+  }, [cleanup, startWaveformAnimation]);
 
   const startMiniProgramRecording = useCallback(() => {
     return new Promise<boolean>((resolve) => {
@@ -159,12 +162,25 @@ const RecordingPage: React.FC = () => {
           resolve(true);
         });
 
-        recorder.onStop((res: any) => {
+        recorder.onStop(async (res: any) => {
           console.log('[Recording] 小程序录音结束:', res);
-          const duration = recordingTime;
+          const capturedDuration = recordingTimeRef.current;
+          console.log('[Recording] 捕获的录音时长:', capturedDuration, '秒');
+          let filePath = res.tempFilePath;
+
+          try {
+            const savedRes = await Taro.saveFile({
+              tempFilePath: filePath
+            });
+            filePath = savedRes.savedFilePath;
+            console.log('[Recording] 录音已持久化:', filePath);
+          } catch (saveErr) {
+            console.warn('[Recording] 保存文件失败，使用临时路径:', saveErr);
+          }
+
           setPendingAudio({
-            filePath: res.tempFilePath,
-            duration
+            filePath,
+            duration: capturedDuration
           });
           setShowTitleModal(true);
           cleanup();
@@ -176,6 +192,7 @@ const RecordingPage: React.FC = () => {
           cleanup();
           setIsRecording(false);
           setRecordingTime(0);
+          recordingTimeRef.current = 0;
           resolve(false);
         });
 
@@ -194,20 +211,19 @@ const RecordingPage: React.FC = () => {
         resolve(false);
       }
     });
-  }, [recordingTime, cleanup, startWaveformAnimation]);
+  }, [cleanup, startWaveformAnimation]);
 
   const handleStart = async () => {
     if (isRecording) return;
 
-    const startTimer = () => {
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
-    };
-
     setIsRecording(true);
     setRecordingTime(0);
-    startTimer();
+    recordingTimeRef.current = 0;
+
+    timerRef.current = setInterval(() => {
+      recordingTimeRef.current += 1;
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
 
     const env = Taro.getEnv();
     console.log('[Recording] 当前环境:', env);
@@ -222,6 +238,11 @@ const RecordingPage: React.FC = () => {
     if (!success) {
       setIsRecording(false);
       setRecordingTime(0);
+      recordingTimeRef.current = 0;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
       cleanup();
     }
   };
@@ -229,7 +250,14 @@ const RecordingPage: React.FC = () => {
   const handleStop = () => {
     if (!isRecording) return;
 
-    console.log('[Recording] 停止录音,时长:', recordingTime, '秒');
+    const finalDuration = recordingTimeRef.current;
+    console.log('[Recording] 停止录音, ref时长:', finalDuration, '秒, state时长:', recordingTime, '秒');
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     const env = Taro.getEnv();
 
     if (env === Taro.ENV_TYPE.WEB) {
@@ -260,12 +288,14 @@ const RecordingPage: React.FC = () => {
       date: new Date().toISOString().split('T')[0]
     };
 
+    console.log('[Recording] 保存录音:', newRecording.title, '时长:', newRecording.duration, '秒');
     addRecording(newRecording);
     setShowTitleModal(false);
     setCurrentTitle('');
     setPendingAudio(null);
     setWaveBars(Array(40).fill(0));
     setRecordingTime(0);
+    recordingTimeRef.current = 0;
 
     Taro.showToast({ title: '已保存 ✨', icon: 'success' });
   };
@@ -276,6 +306,7 @@ const RecordingPage: React.FC = () => {
     setPendingAudio(null);
     setWaveBars(Array(40).fill(0));
     setRecordingTime(0);
+    recordingTimeRef.current = 0;
   };
 
   useDidHide(() => {

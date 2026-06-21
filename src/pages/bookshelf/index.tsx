@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Button, Image, usePullDownRefresh } from '@tarojs/components';
 import Taro from '@tarojs/taro';
+import classnames from 'classnames';
 import styles from './index.module.scss';
 import { useApp } from '@/store/AppContext';
 import FilterBar from '@/components/FilterBar';
@@ -9,7 +10,7 @@ import { ageOptions, themeOptions, durationOptions } from '@/data/books';
 import { filterBooks } from '@/utils';
 
 const BookshelfPage: React.FC = () => {
-  const { books, readingPlan, eyeCareMode } = useApp();
+  const { books, readingPlan, eyeCareMode, setReadingPlan } = useApp();
   const [selectedAge, setSelectedAge] = useState('all');
   const [selectedTheme, setSelectedTheme] = useState('all');
   const [selectedDuration, setSelectedDuration] = useState('all');
@@ -43,11 +44,22 @@ const BookshelfPage: React.FC = () => {
     return books.find(book => book.id === readingPlan.bookId);
   }, [books, readingPlan]);
 
+  const isPlanCompleted = readingPlan?.completed ?? false;
+
   const handleStartReading = () => {
     if (!planBook) return;
     console.log('[Bookshelf] 开始阅读今晚计划:', planBook.title);
     Taro.navigateTo({
       url: `/pages/reader/index?id=${planBook.id}`
+    });
+  };
+
+  const handleChangePlan = () => {
+    console.log('[Bookshelf] 换一本阅读计划');
+    Taro.showToast({
+      title: '在绘本列表中点击📖添加新计划',
+      icon: 'none',
+      duration: 2000
     });
   };
 
@@ -73,6 +85,66 @@ const BookshelfPage: React.FC = () => {
     return '晚上好';
   };
 
+  const renderPlanCard = () => {
+    if (!readingPlan || !planBook) {
+      return (
+        <View className={styles.tonightPlan}>
+          <View className={styles.emptyPlan}>
+            <Text className={styles.emptyPlanText}>还没有设置今晚的阅读计划哦～</Text>
+            <Button className={styles.planBtn} onClick={handleChoosePlan}>
+              去选择
+            </Button>
+          </View>
+        </View>
+      );
+    }
+
+    if (isPlanCompleted) {
+      return (
+        <View className={classnames(styles.tonightPlan, styles.planCompleted)}>
+          <View className={styles.planHeader}>
+            <Text className={styles.planTitle}>🌙 今晚阅读计划</Text>
+            <View className={styles.completedTag}>✅ 已完成</View>
+          </View>
+          <View className={styles.planContent}>
+            <View className={styles.planCover}>
+              <Image src={planBook.cover} mode="aspectFill" />
+              <View className={styles.completedOverlay}>✓</View>
+            </View>
+            <View className={styles.planInfo}>
+              <Text className={styles.planBookTitle}>{planBook.title}</Text>
+              <Text className={styles.planDuration}>约 {planBook.duration} 分钟 · {planBook.ageRange}</Text>
+              <Text className={styles.completedHint}>太棒了！今晚的故事已经读完啦~</Text>
+            </View>
+          </View>
+          <Button className={styles.changePlanBtn} onClick={handleChangePlan}>
+            🔄 换一本新计划
+          </Button>
+        </View>
+      );
+    }
+
+    return (
+      <View className={styles.tonightPlan}>
+        <View className={styles.planHeader}>
+          <Text className={styles.planTitle}>🌙 今晚阅读计划</Text>
+          <Button className={styles.startBtn} onClick={handleStartReading}>
+            开始阅读
+          </Button>
+        </View>
+        <View className={styles.planContent}>
+          <View className={styles.planCover}>
+            <Image src={planBook.cover} mode="aspectFill" />
+          </View>
+          <View className={styles.planInfo}>
+            <Text className={styles.planBookTitle}>{planBook.title}</Text>
+            <Text className={styles.planDuration}>约 {planBook.duration} 分钟 · {planBook.ageRange}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View
       className={styles.pageContainer}
@@ -83,34 +155,7 @@ const BookshelfPage: React.FC = () => {
         <Text className={styles.subGreeting}>今天想读什么故事呢？</Text>
       </View>
 
-      {readingPlan && planBook ? (
-        <View className={styles.tonightPlan}>
-          <View className={styles.planHeader}>
-            <Text className={styles.planTitle}>🌙 今晚阅读计划</Text>
-            <Button className={styles.startBtn} onClick={handleStartReading}>
-              开始阅读
-            </Button>
-          </View>
-          <View className={styles.planContent}>
-            <View className={styles.planCover}>
-              <Image src={planBook.cover} mode="aspectFill" />
-            </View>
-            <View className={styles.planInfo}>
-              <Text className={styles.planBookTitle}>{planBook.title}</Text>
-              <Text className={styles.planDuration}>约 {planBook.duration} 分钟 · {planBook.ageRange}</Text>
-            </View>
-          </View>
-        </View>
-      ) : (
-        <View className={styles.tonightPlan}>
-          <View className={styles.emptyPlan}>
-            <Text className={styles.emptyPlanText}>还没有设置今晚的阅读计划哦～</Text>
-            <Button className={styles.planBtn} onClick={handleChoosePlan}>
-              去选择
-            </Button>
-          </View>
-        </View>
-      )}
+      {renderPlanCard()}
 
       <FilterBar
         ageOptions={ageOptions}
