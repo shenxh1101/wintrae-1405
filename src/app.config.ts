@@ -5,7 +5,8 @@ export default defineAppConfig({
     'pages/recording/index',
     'pages/growth/index',
     'pages/reader/index',
-    'pages/book-detail/index'
+    'pages/book-detail/index',
+    'pages/task-detail/index'
   ],
   window: {
     backgroundTextStyle: 'light',

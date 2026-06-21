@@ -3,9 +3,7 @@ import { View, Text, Button, usePullDownRefresh } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classnames from 'classnames';
 import styles from './index.module.scss';
-import { tasks as mockTasks } from '@/data/tasks';
 import TaskCard from '@/components/TaskCard';
-import { Task } from '@/types';
 import { useApp } from '@/store/AppContext';
 
 const typeFilters = [
@@ -17,8 +15,7 @@ const typeFilters = [
 ];
 
 const TasksPage: React.FC = () => {
-  const { eyeCareMode } = useApp();
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
+  const { eyeCareMode, tasks } = useApp();
   const [selectedType, setSelectedType] = useState('all');
 
   usePullDownRefresh(() => {
@@ -37,13 +34,11 @@ const TasksPage: React.FC = () => {
     return tasks.filter(t => t.completed).length;
   }, [tasks]);
 
-  const handleTaskComplete = (taskId: string) => {
-    console.log('[Tasks] 任务完成:', taskId);
-    setTasks(prev =>
-      prev.map(task =>
-        task.id === taskId ? { ...task, completed: true } : task
-      )
-    );
+  const handleTaskClick = (taskId: string) => {
+    console.log('[Tasks] 点击任务，跳转详情:', taskId);
+    Taro.navigateTo({
+      url: `/pages/task-detail/index?id=${taskId}`
+    });
   };
 
   return (
@@ -98,7 +93,8 @@ const TasksPage: React.FC = () => {
             <TaskCard
               key={task.id}
               task={task}
-              onComplete={handleTaskComplete}
+              onComplete={() => handleTaskClick(task.id)}
+              clickable={true}
             />
           ))}
         </View>
@@ -106,7 +102,7 @@ const TasksPage: React.FC = () => {
         <View className={styles.emptyState}>
           <Text className={styles.emptyIcon}>🎉</Text>
           <Text className={styles.emptyText}>
-            太棒了！\n这个类型的任务都完成啦～
+            太棒了！{'\n'}这个类型的任务都完成啦～
           </Text>
         </View>
       )}

@@ -35,6 +35,37 @@ export interface QuestionCard {
   answer: number;
 }
 
+export interface FindTarget {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  found: boolean;
+}
+
+export interface ColorPalette {
+  id: string;
+  color: string;
+  name: string;
+}
+
+export interface ColorZone {
+  id: string;
+  label: string;
+  filled: boolean;
+  color: string;
+}
+
+export interface EmotionOption {
+  id: string;
+  emoji: string;
+  label: string;
+  correct?: boolean;
+  feedback: string;
+}
+
 export interface Task {
   id: string;
   type: 'retell' | 'find' | 'emotion' | 'color';
@@ -44,15 +75,29 @@ export interface Task {
   bookTitle: string;
   difficulty: 'easy' | 'medium' | 'hard';
   completed: boolean;
+  hint?: string;
+  retellPrompt?: string;
+  findScene?: {
+    image: string;
+    targets: FindTarget[];
+  };
+  emotionQuestion?: {
+    scene: string;
+    options: EmotionOption[];
+  };
+  colorPalettes?: ColorPalette[];
+  colorZones?: ColorZone[];
 }
 
 export interface Recording {
   id: string;
   title: string;
   duration: number;
+  filePath: string;
+  createdAt: string;
   date: string;
-  bookTitle: string;
-  audioUrl?: string;
+  bookTitle?: string;
+  bookId?: string;
 }
 
 export interface GrowthRecord {
@@ -61,6 +106,8 @@ export interface GrowthRecord {
   bookTitle: string;
   duration: number;
   completed: boolean;
+  themes?: string[];
+  characters?: string[];
 }
 
 export interface GrowthStats {

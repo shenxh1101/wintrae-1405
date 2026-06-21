@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { View, Text, Image, Button, Swiper, SwiperItem } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import classnames from 'classnames';
@@ -9,7 +9,16 @@ import { KeyWord, QuestionCard } from '@/types';
 
 const ReaderPage: React.FC = () => {
   const router = useRouter();
-  const { books: appBooks, toggleFavorite, brightness, eyeCareMode } = useApp();
+  const {
+    books: appBooks,
+    toggleFavorite,
+    brightness,
+    eyeCareMode,
+    readingPlan,
+    addGrowthRecord,
+    completeReadingPlan
+  } = useApp();
+
   const [currentPage, setCurrentPage] = useState(0);
   const [hideText, setHideText] = useState(false);
   const [showQuestion, setShowQuestion] = useState(false);
@@ -19,6 +28,10 @@ const ReaderPage: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastText, setToastText] = useState('');
   const [isFavorited, setIsFavorited] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
+  const [completedRecorded, setCompletedRecorded] = useState(false);
+
+  const readStartTimeRef = useRef<number>(Date.now());
 
   const bookId = router.params.id;
   const book = useMemo(() => {
@@ -27,6 +40,7 @@ const ReaderPage: React.FC = () => {
 
   const pages = book.pages;
   const currentPageData = pages[currentPage];
+  const totalPages = pages.length;
 
   useEffect(() => {
     setIsFavorited(book.isFavorite);
@@ -38,9 +52,50 @@ const ReaderPage: React.FC = () => {
     setTimeout(() => setShowToast(false), 1500);
   }, []);
 
+  const recordGrowth = useCallback(() => {
+    if (completedRecorded) return;
+
+    const elapsedSeconds = Math.max(
+      1,
+      Math.round((Date.now() - readStartTimeRef.current) / 1000)
+    );
+    const durationMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+    const today = new Date().toISOString().split('T')[0];
+
+    console.log('[Reader] 阅读完成，沉淀成长记录:', {
+      book: book.title,
+      duration: durationMinutes,
+      elapsedSeconds
+    });
+
+    addGrowthRecord({
+      date: today,
+      bookId: book.id,
+      bookTitle: book.title,
+      duration: Math.min(durationMinutes, book.duration),
+      completed: true,
+      themes: [book.theme],
+      characters: Array.from(new Set(pages.flatMap(p => p.characters)))
+    });
+
+    if (readingPlan && readingPlan.bookId === book.id && !readingPlan.completed) {
+      console.log('[Reader] 今晚阅读计划完成:', readingPlan.bookTitle);
+      completeReadingPlan();
+    }
+
+    setCompletedRecorded(true);
+  }, [
+    completedRecorded,
+    book,
+    pages,
+    addGrowthRecord,
+    readingPlan,
+    completeReadingPlan
+  ]);
+
   const handleSwiperChange = useCallback((e: { detail: { current: number }) => {
     const newPage = e.detail.current;
-    console.log('[Reader] 翻页到:', newPage + 1);
+    console.log('[Reader] 翻页到:', newPage + 1, '/', totalPages);
     setCurrentPage(newPage);
     setSelectedAnswer(null);
 
@@ -50,7 +105,15 @@ const ReaderPage: React.FC = () => {
         setShowQuestion(true);
       }, 500);
     }
-  }, [pages]);
+
+    if (newPage === totalPages - 1) {
+      setTimeout(() => {
+        console.log('[Reader] 已到达最后一页，显示完成弹窗');
+        recordGrowth();
+        setShowComplete(true);
+      }, 1500);
+    }
+  }, [pages, totalPages, recordGrowth]);
 
   const handleKeyWordClick = useCallback((keyword: KeyWord) => {
     console.log('[Reader] 点击关键词:', keyword.word);
@@ -112,6 +175,26 @@ const ReaderPage: React.FC = () => {
   const handleBack = useCallback(() => {
     console.log('[Reader] 返回书架');
     Taro.navigateBack();
+  }, []);
+
+  const handleContinueTasks = useCallback(() => {
+    console.log('[Reader] 前往亲子任务');
+    setShowComplete(false);
+    Taro.switchTab({ url: '/pages/tasks/index' });
+  }, []);
+
+  const handleContinueReading = useCallback(() => {
+    console.log('[Reader] 继续阅读更多');
+    setShowComplete(false);
+    Taro.navigateBack();
+  }, []);
+
+  const handleRestart = useCallback(() => {
+    console.log('[Reader] 再读一遍');
+    setShowComplete(false);
+    setCurrentPage(0);
+    readStartTimeRef.current = Date.now();
+    setCompletedRecorded(false);
   }, []);
 
   const renderTextWithKeywords = useCallback((text: string, keywords: KeyWord[]) => {
@@ -273,6 +356,84 @@ const ReaderPage: React.FC = () => {
           onAnswerSelect={handleAnswerSelect}
           onClose={handleCloseQuestion}
         />
+      )}
+
+      {showComplete && (
+        <View className={styles.questionModal}>
+          <View className={styles.questionCard}>
+            <View className={styles.questionHeader}>
+              <Text className={styles.questionIcon}>🎉</Text>
+              <Text className={styles.questionTitle}>阅读完成！</Text>
+            </View>
+            <View style={{ textAlign: 'center', padding: '20rpx 0' }}>
+              <Text style={{ fontSize: '80rpx', display: 'block' }}>🏆</Text>
+              <Text style={{
+                fontSize: '40rpx',
+                fontWeight: 'bold',
+                color: '#FF8A65',
+                display: 'block',
+                marginTop: '16rpx'
+              }}>
+                太棒啦！
+              </Text>
+              <Text style={{
+                fontSize: '28rpx',
+                color: '#666',
+                marginTop: '16rpx',
+                display: 'block',
+                lineHeight: 1.6
+              }}>
+                你读完了《{book.title}》{'\n'}
+                已记录到成长档案 ✨
+              </Text>
+            </View>
+            <View style={{ display: 'flex', gap: '16rpx', marginTop: '32rpx' }}>
+              <Button
+                style={{
+                  flex: 1,
+                  height: '80rpx',
+                  lineHeight: '80rpx',
+                  borderRadius: '40rpx',
+                  backgroundColor: '#FFF3E0',
+                  color: '#FF8A65',
+                  fontSize: '28rpx'
+                }}
+                onClick={handleRestart}
+              >
+                🔄 再读一遍
+              </Button>
+              <Button
+                style={{
+                  flex: 1,
+                  height: '80rpx',
+                  lineHeight: '80rpx',
+                  borderRadius: '40rpx',
+                  background: 'linear-gradient(135deg, #FF8A65, #FFB74D)',
+                  color: '#fff',
+                  fontSize: '28rpx'
+                }}
+                onClick={handleContinueTasks}
+              >
+                🎮 做任务
+              </Button>
+            </View>
+            <Button
+              style={{
+                width: '100%',
+                marginTop: '16rpx',
+                height: '72rpx',
+                lineHeight: '72rpx',
+                borderRadius: '36rpx',
+                backgroundColor: '#F5F5F5',
+                color: '#999',
+                fontSize: '26rpx'
+              }}
+              onClick={handleContinueReading}
+            >
+              📚 继续读其他书
+            </Button>
+          </View>
+        </View>
       )}
 
       {showToast && (

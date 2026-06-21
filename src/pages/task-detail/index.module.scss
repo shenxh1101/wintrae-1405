@@ -1,0 +1,521 @@
+@use '@/styles/variables.scss' as *;
+
+.pageContainer {
+  padding: 0 $page-padding;
+  padding-bottom: 180rpx;
+  min-height: 100vh;
+}
+
+.header {
+  padding: $spacing-xl 0;
+  margin-bottom: $spacing-lg;
+
+  .taskTitle {
+    font-size: $font-size-title;
+    font-weight: $font-weight-bold;
+    color: $color-text-primary;
+    margin-bottom: $spacing-sm;
+  }
+
+  .taskDesc {
+    font-size: $font-size-md;
+    color: $color-text-secondary;
+    line-height: $line-height-loose;
+    margin-bottom: $spacing-md;
+  }
+
+  .taskMeta {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    flex-wrap: wrap;
+  }
+
+  .bookTag {
+    @include tag-style($color-bg-hover, $color-primary);
+  }
+
+  .difficultyTag {
+    @include tag-style($color-tag-theme-bg, $color-tag-theme-text);
+  }
+
+  .hintBox {
+    margin-top: $spacing-md;
+    padding: $spacing-md $spacing-lg;
+    background: $color-bg-hover;
+    border-radius: $radius-md;
+    border-left: 6rpx solid $color-primary;
+    font-size: $font-size-sm;
+    color: $color-text-secondary;
+    line-height: $line-height-normal;
+  }
+}
+
+.typeRetell {
+  .contentCard {
+    @include card-style;
+  }
+}
+
+.typeFind {
+  .contentCard {
+    @include card-style;
+  }
+}
+
+.typeEmotion {
+  .contentCard {
+    @include card-style;
+  }
+}
+
+.typeColor {
+  .contentCard {
+    @include card-style;
+  }
+}
+
+.retellPrompt {
+  padding: $spacing-lg;
+  background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+  border-radius: $radius-lg;
+  margin-bottom: $spacing-lg;
+
+  .promptLabel {
+    font-size: $font-size-sm;
+    color: $color-primary-dark;
+    font-weight: $font-weight-semibold;
+    margin-bottom: $spacing-sm;
+  }
+
+  .promptText {
+    font-size: $font-size-md;
+    color: $color-text-primary;
+    line-height: $line-height-loose;
+  }
+}
+
+.retellTextarea {
+  width: 100%;
+  min-height: 300rpx;
+  padding: $spacing-lg;
+  border: 3rpx solid $color-border;
+  border-radius: $radius-lg;
+  background: $color-bg-card;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  line-height: $line-height-loose;
+  box-sizing: border-box;
+  transition: border-color $transition-base;
+  resize: none;
+
+  &:focus {
+    border-color: $color-primary;
+    outline: none;
+  }
+}
+
+.recordHint {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  margin-top: $spacing-lg;
+  padding: $spacing-md;
+  background: $color-tag-age-bg;
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+  color: $color-tag-age-text;
+}
+
+.goRecordBtn {
+  @include button-reset;
+  margin-top: $spacing-lg;
+  width: 100%;
+  height: $button-height-lg;
+  border-radius: $radius-button;
+  background: linear-gradient(135deg, #64B5F6 0%, #42A5F5 100%);
+  color: $color-text-white;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.findScene {
+  position: relative;
+  width: 100%;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow-card;
+  margin-bottom: $spacing-lg;
+
+  image {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+}
+
+.findTarget {
+  position: absolute;
+  background: transparent;
+  border-radius: 50%;
+  transition: all $transition-base;
+  padding: 0;
+  border: none;
+  min-width: 0;
+  min-height: 0;
+  line-height: 1;
+
+  &::after {
+    border: none;
+  }
+
+  &.found {
+    border: 6rpx solid $color-green;
+    background: rgba(129, 199, 132, 0.3);
+    box-shadow: 0 0 20rpx rgba(129, 199, 132, 0.5);
+
+    &::before {
+      content: '✓';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: $color-green;
+      font-size: 40rpx;
+      font-weight: $font-weight-bold;
+    }
+  }
+}
+
+.findProgress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-md $spacing-lg;
+  background: $color-bg-hover;
+  border-radius: $radius-lg;
+  margin-bottom: $spacing-md;
+
+  .progressLabel {
+    font-size: $font-size-md;
+    color: $color-text-secondary;
+  }
+
+  .progressValue {
+    font-size: $font-size-xl;
+    font-weight: $font-weight-bold;
+    color: $color-primary;
+  }
+}
+
+.emotionScene {
+  padding: $spacing-lg;
+  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+  border-radius: $radius-lg;
+  margin-bottom: $spacing-xl;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  line-height: $line-height-loose;
+}
+
+.emotionOptions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+.emotionOption {
+  @include button-reset;
+  flex-direction: column;
+  gap: $spacing-sm;
+  padding: $spacing-md $spacing-xs;
+  border-radius: $radius-lg;
+  background: $color-bg-card;
+  border: 3rpx solid $color-border;
+  transition: all $transition-base;
+  min-width: 0;
+
+  .emoji {
+    font-size: 64rpx;
+    line-height: 1;
+  }
+
+  .label {
+    font-size: $font-size-sm;
+    color: $color-text-primary;
+    font-weight: $font-weight-medium;
+  }
+
+  &.correct {
+    border-color: $color-green;
+    background: rgba(129, 199, 132, 0.15);
+    box-shadow: 0 4rpx 16rpx rgba(129, 199, 132, 0.25);
+  }
+
+  &.wrong {
+    border-color: $color-error;
+    background: rgba(239, 83, 80, 0.15);
+    animation: shake 0.4s ease;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10rpx); }
+  75% { transform: translateX(10rpx); }
+}
+
+.emotionFeedback {
+  padding: $spacing-lg;
+  border-radius: $radius-lg;
+  margin-bottom: $spacing-lg;
+  animation: slideIn 0.3s ease;
+
+  &.success {
+    background: rgba(129, 199, 132, 0.2);
+    border: 3rpx solid $color-green;
+
+    .feedbackEmoji {
+      font-size: 64rpx;
+      text-align: center;
+      margin-bottom: $spacing-sm;
+    }
+
+    .feedbackTitle {
+      font-size: $font-size-lg;
+      font-weight: $font-weight-bold;
+      color: $color-green;
+      text-align: center;
+      margin-bottom: $spacing-sm;
+    }
+
+    .feedbackText {
+      font-size: $font-size-md;
+      color: $color-text-primary;
+      line-height: $line-height-loose;
+      text-align: center;
+    }
+  }
+
+  &.fail {
+    background: rgba(239, 83, 80, 0.2);
+    border: 3rpx solid $color-error;
+
+    .feedbackEmoji {
+      font-size: 64rpx;
+      text-align: center;
+      margin-bottom: $spacing-sm;
+    }
+
+    .feedbackTitle {
+      font-size: $font-size-lg;
+      font-weight: $font-weight-bold;
+      color: $color-error;
+      text-align: center;
+      margin-bottom: $spacing-sm;
+    }
+
+    .feedbackText {
+      font-size: $font-size-md;
+      color: $color-text-primary;
+      line-height: $line-height-loose;
+      text-align: center;
+    }
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.colorCanvas {
+  width: 100%;
+  height: 400rpx;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  margin-bottom: $spacing-lg;
+  background-image: url('https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cute%20cartoon%20forest%20animals%20coloring%20page%20black%20and%20white%20outline%20simple%20children%20illustration&image_size=landscape_16_9');
+  background-size: cover;
+  background-position: center;
+  box-shadow: $shadow-card;
+}
+
+.colorPalettes {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: $spacing-md;
+  padding: $spacing-lg;
+  background: $color-bg-hover;
+  border-radius: $radius-lg;
+  margin-bottom: $spacing-lg;
+}
+
+.paletteColor {
+  @include button-reset;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 4rpx solid transparent;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+  transition: all $transition-base;
+  padding: 0;
+  min-width: 0;
+  position: relative;
+
+  &.selected {
+    border-color: $color-text-white;
+    box-shadow: 0 0 0 4rpx $color-primary, 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.colorZoneBtns {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+.colorZone {
+  @include button-reset;
+  justify-content: flex-start;
+  gap: $spacing-md;
+  padding: $spacing-md;
+  border-radius: $radius-lg;
+  background: $color-bg-card;
+  transition: all $transition-base;
+  min-width: 0;
+
+  .zoneColor {
+    width: 64rpx;
+    height: 64rpx;
+    border-radius: $radius-md;
+    border: 3rpx dashed $color-text-disabled;
+    flex-shrink: 0;
+    background: transparent;
+  }
+
+  &.filled {
+    .zoneColor {
+      border-style: solid;
+      border-color: $color-border;
+    }
+  }
+
+  .zoneLabel {
+    font-size: $font-size-md;
+    color: $color-text-primary;
+    font-weight: $font-weight-medium;
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.completeBtn {
+  @include gradient-button;
+  position: fixed;
+  left: $page-padding;
+  right: $page-padding;
+  bottom: calc(#{$spacing-xl} + env(safe-area-inset-bottom));
+  height: $button-height-lg;
+  font-size: $font-size-lg;
+  z-index: 100;
+
+  &.disabled {
+    background: $color-text-disabled;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+}
+
+.congratsCard {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 560rpx;
+  padding: $spacing-xxl $spacing-xl;
+  background: $color-bg-card;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-popup;
+  text-align: center;
+  z-index: 999;
+  animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .checkIcon {
+    width: 160rpx;
+    height: 160rpx;
+    margin: 0 auto $spacing-lg;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #81C784 0%, #66BB6A 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 100rpx;
+    color: $color-text-white;
+    box-shadow: 0 8rpx 32rpx rgba(129, 199, 132, 0.4);
+  }
+
+  .congratsTitle {
+    font-size: $font-size-xxl;
+    font-weight: $font-weight-bold;
+    color: $color-text-primary;
+    margin-bottom: $spacing-sm;
+  }
+
+  .congratsText {
+    font-size: $font-size-md;
+    color: $color-text-secondary;
+    line-height: $line-height-loose;
+  }
+
+  .resetBtn {
+    @include button-reset;
+    margin-top: $spacing-xl;
+    width: 100%;
+    height: $button-height-md;
+    border-radius: $radius-button;
+    background: $color-bg-hover;
+    color: $color-primary;
+    font-size: $font-size-md;
+    font-weight: $font-weight-semibold;
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}

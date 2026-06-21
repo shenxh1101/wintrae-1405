@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, Button } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classnames from 'classnames';
@@ -8,6 +8,7 @@ import { Task } from '@/types';
 interface TaskCardProps {
   task: Task;
   onComplete?: (taskId: string) => void;
+  clickable?: boolean;
 }
 
 const typeLabels: Record<string, string> = {
@@ -23,12 +24,14 @@ const difficultyLabels: Record<string, string> = {
   hard: '⭐⭐⭐ 困难'
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, onComplete }) => {
-  const [completed, setCompleted] = useState(task.completed);
-
-  const handleStart = () => {
-    console.log('[TaskCard] 开始任务:', task.title);
-    if (completed) {
+const TaskCard: React.FC<TaskCardProps> = ({ task, onComplete, clickable = false }) => {
+  const handleClick = () => {
+    console.log('[TaskCard] 点击任务:', task.title, 'clickable:', clickable);
+    if (clickable) {
+      onComplete?.(task.id);
+      return;
+    }
+    if (task.completed) {
       Taro.showToast({
         title: '已完成此任务',
         icon: 'none'
@@ -42,7 +45,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onComplete }) => {
       cancelText: '稍后',
       success: (res) => {
         if (res.confirm) {
-          setCompleted(true);
           onComplete?.(task.id);
           Taro.showToast({
             title: '任务完成！真棒！',
@@ -54,7 +56,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onComplete }) => {
   };
 
   return (
-    <View className={classnames(styles.taskCard, completed && styles.completed)}>
+    <View className={classnames(styles.taskCard, task.completed && styles.completed)}>
       <View className={styles.header}>
         <View className={classnames(styles.typeBadge, styles[`type${task.type.charAt(0).toUpperCase() + task.type.slice(1)}`])}>
           {typeLabels[task.type]}
@@ -72,14 +74,14 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onComplete }) => {
       </View>
 
       <View className={styles.footer}>
-        <Text className={classnames(styles.status, completed && styles.completed)}>
-          {completed ? '✅ 已完成' : '⏳ 待完成'}
+        <Text className={classnames(styles.status, task.completed && styles.completed)}>
+          {task.completed ? '✅ 已完成' : '⏳ 待完成'}
         </Text>
         <Button
-          className={classnames(styles.startBtn, completed && styles.completed)}
-          onClick={handleStart}
+          className={classnames(styles.startBtn, task.completed && styles.completed)}
+          onClick={handleClick}
         >
-          {completed ? '再来一次' : '开始任务'}
+          {task.completed ? '再玩一次' : clickable ? '开始挑战' : '开始任务'}
         </Button>
       </View>
     </View>
