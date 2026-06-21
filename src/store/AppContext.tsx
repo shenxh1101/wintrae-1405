@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import Taro from '@tarojs/taro';
-import { Book, ReadingPlan, Recording, GrowthRecord, Task } from '@/types';
+import {
+  Book, ReadingPlan, Recording, GrowthRecord, Task, Bookmark, ReadingProgress
+} from '@/types';
 import { books as mockBooks } from '@/data/books';
 import { tasks as mockTasks } from '@/data/tasks';
 
@@ -12,6 +14,8 @@ interface AppContextType {
   eyeCareMode: boolean;
   recordings: Recording[];
   growthRecords: GrowthRecord[];
+  bookmarks: Bookmark[];
+  readingProgresses: ReadingProgress[];
   toggleFavorite: (bookId: string) => void;
   setBrightness: (value: number) => void;
   setReadingPlan: (bookId: string, bookTitle: string) => void;
@@ -25,7 +29,14 @@ interface AppContextType {
   updateTaskTargets: (taskId: string, targets: Task['findScene']['targets']) => void;
   updateTaskColorZones: (taskId: string, zones: Task['colorZones']) => void;
   linkRecordingToTask: (taskId: string, recordingId: string | null) => void;
-  getGrowthStats: () => {
+  addBookmark: (bookmark: Bookmark) => void;
+  removeBookmark: (bookId: string, pageIndex: number) => void;
+  getBookmarks: (bookId: string) => Bookmark[];
+  saveReadingProgress: (bookId: string, lastPage: number, totalPages: number) => void;
+  addNote: (bookId: string, pageIndex: number, content: string) => void;
+  getNotes: (bookId: string) => ReadingProgress['notes'];
+  getReadingProgress: (bookId: string) => ReadingProgress | undefined;
+  getGrowthStats: (monthKey?: string) => {
     totalDays: number;
     totalBooks: number;
     totalMinutes: number;
@@ -41,7 +52,9 @@ const STORAGE_KEYS = {
   EYE_CARE: 'storybook_eye_care',
   RECORDINGS: 'storybook_recordings',
   GROWTH_RECORDS: 'storybook_growth_records',
-  TASKS: 'storybook_tasks'
+  TASKS: 'storybook_tasks',
+  BOOKMARKS: 'storybook_bookmarks',
+  READING_PROGRESSES: 'storybook_progresses'
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -78,6 +91,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('[AppContext] 加载任务失败:', e);
     }
     return mockTasks;
+  });
+
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
+    try {
+      const stored = Taro.getStorageSync(STORAGE_KEYS.BOOKMARKS);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error('[AppContext] 加载书签失败:', e);
+    }
+    return [];
+  });
+
+  const [readingProgresses, setReadingProgresses] = useState<ReadingProgress[]>(() => {
+    try {
+      const stored = Taro.getStorageSync(STORAGE_KEYS.READING_PROGRESSES);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error('[AppContext] 加载阅读进度失败:', e);
+    }
+    return [];
   });
 
   const [brightness, setBrightnessState] = useState<number>(() => {
@@ -134,29 +167,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const favorites = books.filter(b => b.isFavorite).map(b => b.id);
       Taro.setStorageSync(STORAGE_KEYS.FAVORITES, JSON.stringify(favorites));
-      console.log('[AppContext] 保存收藏:', favorites.length, '本');
-    } catch (e) {
-      console.error('[AppContext] 保存收藏失败:', e);
-    }
+    } catch (e) { console.error(e); }
   }, [books]);
 
   useEffect(() => {
     try {
       Taro.setStorageSync(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
-      const completed = tasks.filter(t => t.completed).length;
-      console.log('[AppContext] 保存任务:', tasks.length, '条，已完成', completed, '条');
-    } catch (e) {
-      console.error('[AppContext] 保存任务失败:', e);
-    }
+    } catch (e) { console.error(e); }
   }, [tasks]);
 
   useEffect(() => {
     try {
-      Taro.setStorageSync(STORAGE_KEYS.BRIGHTNESS, String(brightness));
-    } catch (e) {
-      console.error('[AppContext] 保存亮度失败:', e);
-    }
-  }, [brightness]);
+      Taro.setStorageSync(STORAGE_KEYS.BOOKMARKS, JSON.stringify(bookmarks));
+      console.log('[AppContext] 保存书签:', bookmarks.length, '条');
+    } catch (e) { console.error(e); }
+  }, [bookmarks]);
+
+  useEffect(() => {
+    try {
+      Taro.setStorageSync(STORAGE_KEYS.READING_PROGRESSES, JSON.stringify(readingProgresses));
+      console.log('[AppContext] 保存阅读进度:', readingProgresses.length, '条');
+    } catch (e) { console.error(e); }
+  }, [readingProgresses]);
+
+  useEffect(() => { Taro.setStorageSync(STORAGE_KEYS.BRIGHTNESS, String(brightness)); }, [brightness]);
 
   useEffect(() => {
     try {
@@ -165,66 +199,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } else {
         Taro.removeStorageSync(STORAGE_KEYS.READING_PLAN);
       }
-    } catch (e) {
-      console.error('[AppContext] 保存阅读计划失败:', e);
-    }
+    } catch (e) { console.error(e); }
   }, [readingPlan]);
 
-  useEffect(() => {
-    try {
-      Taro.setStorageSync(STORAGE_KEYS.EYE_CARE, String(eyeCareMode));
-    } catch (e) {
-      console.error('[AppContext] 保存护眼模式失败:', e);
-    }
-  }, [eyeCareMode]);
+  useEffect(() => { Taro.setStorageSync(STORAGE_KEYS.EYE_CARE, String(eyeCareMode)); }, [eyeCareMode]);
 
   useEffect(() => {
     try {
       Taro.setStorageSync(STORAGE_KEYS.RECORDINGS, JSON.stringify(recordings));
-      console.log('[AppContext] 保存录音:', recordings.length, '条');
-    } catch (e) {
-      console.error('[AppContext] 保存录音失败:', e);
-    }
+    } catch (e) { console.error(e); }
   }, [recordings]);
 
   useEffect(() => {
     try {
       Taro.setStorageSync(STORAGE_KEYS.GROWTH_RECORDS, JSON.stringify(growthRecords));
-      console.log('[AppContext] 保存成长记录:', growthRecords.length, '条');
-    } catch (e) {
-      console.error('[AppContext] 保存成长记录失败:', e);
-    }
+    } catch (e) { console.error(e); }
   }, [growthRecords]);
 
   const toggleFavorite = useCallback((bookId: string) => {
-    setBooks(prevBooks =>
-      prevBooks.map(book =>
-        book.id === bookId ? { ...book, isFavorite: !book.isFavorite } : book
-      )
-    );
+    setBooks(prevBooks => prevBooks.map(book =>
+      book.id === bookId ? { ...book, isFavorite: !book.isFavorite } : book
+    ));
   }, []);
 
-  const setBrightness = useCallback((value: number) => {
-    setBrightnessState(value);
-  }, []);
+  const setBrightness = useCallback((value: number) => { setBrightnessState(value); }, []);
 
   const setReadingPlan = useCallback((bookId: string, bookTitle: string) => {
     const today = new Date().toISOString().split('T')[0];
-    setReadingPlanState({
-      bookId,
-      bookTitle,
-      date: today,
-      completed: false
-    });
+    setReadingPlanState({ bookId, bookTitle, date: today, completed: false });
   }, []);
 
   const completeReadingPlan = useCallback(() => {
     setReadingPlanState(prev => prev ? { ...prev, completed: true } : null);
   }, []);
 
-  const toggleEyeCareMode = useCallback(() => {
-    setEyeCareMode(prev => !prev);
-  }, []);
+  const toggleEyeCareMode = useCallback(() => { setEyeCareMode(prev => !prev); }, []);
 
   const addRecording = useCallback((recording: Recording) => {
     setRecordings(prev => [recording, ...prev]);
@@ -236,18 +245,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addGrowthRecord = useCallback((record: GrowthRecord) => {
     setGrowthRecords(prev => {
-      const exists = prev.find(
-        r => r.date === record.date && r.bookId === record.bookId
-      );
+      const exists = prev.find(r => r.date === record.date && r.bookId === record.bookId);
       if (exists) return prev;
       return [...prev, record];
     });
   }, []);
 
   const completeTask = useCallback((taskId: string) => {
-    setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, completed: true } : t
-    ));
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true } : t));
   }, []);
 
   const resetTask = useCallback((taskId: string) => {
@@ -255,10 +260,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (t.id !== taskId) return t;
       const reset: Task = { ...t, completed: false };
       if (reset.findScene) {
-        reset.findScene = {
-          ...reset.findScene,
-          targets: reset.findScene.targets.map(tg => ({ ...tg, found: false }))
-        };
+        reset.findScene = { ...reset.findScene, targets: reset.findScene.targets.map(tg => ({ ...tg, found: false })) };
       }
       if (reset.colorZones) {
         reset.colorZones = reset.colorZones.map(z => ({ ...z, filled: false, color: 'transparent' }));
@@ -270,44 +272,102 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateTaskTargets = useCallback((taskId: string, targets: Task['findScene']['targets']) => {
     setTasks(prev => prev.map(t => {
       if (t.id !== taskId || !t.findScene) return t;
-      return {
-        ...t,
-        findScene: { ...t.findScene, targets }
-      };
+      return { ...t, findScene: { ...t.findScene, targets } };
     }));
   }, []);
 
   const updateTaskColorZones = useCallback((taskId: string, zones: Task['colorZones']) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      return { ...t, colorZones: zones };
-    }));
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, colorZones: zones } : t));
   }, []);
 
   const linkRecordingToTask = useCallback((taskId: string, recordingId: string | null) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      return { ...t, linkedRecordingId: recordingId || undefined };
-    }));
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, linkedRecordingId: recordingId || undefined } : t));
   }, []);
 
-  const getGrowthStats = useCallback(() => {
-    const uniqueDays = new Set(growthRecords.map(r => r.date));
-    const uniqueBooks = new Set(growthRecords.map(r => r.bookId));
-    const totalMinutes = growthRecords.reduce((sum, r) => sum + r.duration, 0);
+  const addBookmark = useCallback((bookmark: Bookmark) => {
+    setBookmarks(prev => {
+      const exists = prev.find(b => b.bookId === bookmark.bookId && b.pageIndex === bookmark.pageIndex);
+      if (exists) return prev.map(b =>
+        b.bookId === bookmark.bookId && b.pageIndex === bookmark.pageIndex ? bookmark : b
+      );
+      return [...prev, bookmark];
+    });
+  }, []);
+
+  const removeBookmark = useCallback((bookId: string, pageIndex: number) => {
+    setBookmarks(prev => prev.filter(b => !(b.bookId === bookId && b.pageIndex === pageIndex)));
+  }, []);
+
+  const getBookmarks = useCallback((bookId: string) => {
+    return bookmarks.filter(b => b.bookId === bookId);
+  }, [bookmarks]);
+
+  const saveReadingProgress = useCallback((bookId: string, lastPage: number, totalPages: number) => {
+    setReadingProgresses(prev => {
+      const existing = prev.find(p => p.bookId === bookId);
+      const newProgress: ReadingProgress = {
+        bookId,
+        lastPage,
+        totalPages,
+        updatedAt: new Date().toISOString(),
+        notes: existing?.notes || []
+      };
+      if (existing) {
+        return prev.map(p => p.bookId === bookId ? newProgress : p);
+      }
+      return [...prev, newProgress];
+    });
+  }, []);
+
+  const addNote = useCallback((bookId: string, pageIndex: number, content: string) => {
+    setReadingProgresses(prev => {
+      const existing = prev.find(p => p.bookId === bookId);
+      const newNote = { pageIndex, content, createdAt: new Date().toISOString() };
+      if (existing) {
+        return prev.map(p => {
+          if (p.bookId !== bookId) return p;
+          const otherNotes = p.notes.filter(n => n.pageIndex !== pageIndex);
+          return { ...p, notes: [...otherNotes, newNote] };
+        });
+      }
+      return [...prev, {
+        bookId,
+        lastPage: pageIndex,
+        totalPages: 0,
+        updatedAt: new Date().toISOString(),
+        notes: [newNote]
+      }];
+    });
+  }, []);
+
+  const getNotes = useCallback((bookId: string) => {
+    const progress = readingProgresses.find(p => p.bookId === bookId);
+    return progress?.notes || [];
+  }, [readingProgresses]);
+
+  const getReadingProgress = useCallback((bookId: string) => {
+    return readingProgresses.find(p => p.bookId === bookId);
+  }, [readingProgresses]);
+
+  const getGrowthStats = useCallback((monthKey?: string) => {
+    const filteredRecords = monthKey
+      ? growthRecords.filter(r => r.date.startsWith(monthKey))
+      : growthRecords;
+
+    const uniqueDays = new Set(filteredRecords.map(r => r.date));
+    const uniqueBooks = new Set(filteredRecords.map(r => r.bookId));
+    const totalMinutes = filteredRecords.reduce((sum, r) => sum + r.duration, 0);
 
     const themeCount: Record<string, number> = {};
     const charCount: Record<string, number> = {};
 
-    growthRecords.forEach(record => {
+    filteredRecords.forEach(record => {
       const book = books.find(b => b.id === record.bookId);
       if (book) {
         themeCount[book.theme] = (themeCount[book.theme] || 0) + 1;
         const allChars = new Set<string>();
         book.pages.forEach(p => p.characters.forEach(c => allChars.add(c)));
-        allChars.forEach(c => {
-          charCount[c] = (charCount[c] || 0) + 1;
-        });
+        allChars.forEach(c => { charCount[c] = (charCount[c] || 0) + 1; });
       }
     });
 
@@ -340,6 +400,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         eyeCareMode,
         recordings,
         growthRecords,
+        bookmarks,
+        readingProgresses,
         toggleFavorite,
         setBrightness,
         setReadingPlan,
@@ -353,6 +415,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateTaskTargets,
         updateTaskColorZones,
         linkRecordingToTask,
+        addBookmark,
+        removeBookmark,
+        getBookmarks,
+        saveReadingProgress,
+        addNote,
+        getNotes,
+        getReadingProgress,
         getGrowthStats
       }}
     >

@@ -326,4 +326,329 @@
   padding: $spacing-xl 0;
   color: $color-text-tertiary;
   font-size: $font-size-md;
+  white-space: pre-line;
+}
+
+.monthSwitcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-lg;
+  margin-bottom: $spacing-lg;
+  padding: $spacing-md 0;
+}
+
+.monthArrow {
+  @include button-reset;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background: $color-bg-card;
+  box-shadow: $shadow-sm;
+  font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-base;
+  line-height: 64rpx;
+
+  &:active {
+    transform: scale(0.9);
+    background: $color-bg-hover;
+  }
+
+  &.monthArrowDisabled {
+    opacity: 0.4;
+    color: $color-text-tertiary;
+    pointer-events: none;
+  }
+}
+
+.monthLabel {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  min-width: 200rpx;
+  text-align: center;
+}
+
+.modalMask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-lg;
+}
+
+.modalWrap {
+  position: relative;
+  width: 100%;
+  max-width: 640rpx;
+  max-height: 90vh;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+}
+
+.modalClose {
+  position: absolute;
+  top: -16rpx;
+  right: -16rpx;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: $shadow-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+  z-index: 10;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.9);
+  }
+}
+
+.modalScroll {
+  max-height: 70vh;
+  border-radius: $radius-lg;
+  overflow: hidden;
+}
+
+.modalActions {
+  display: flex;
+  gap: $spacing-md;
+  margin-top: $spacing-lg;
+  padding: 0 $spacing-xs;
+}
+
+.actionBtnSave {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-lg;
+  border-radius: $radius-button;
+  background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+  color: $color-text-white;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  box-shadow: $shadow-md;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+  }
+}
+
+.actionBtnShare {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-lg;
+  border-radius: $radius-button;
+  background: $color-primary-gradient;
+  color: $color-text-white;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  box-shadow: $shadow-md;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+  }
+}
+
+.shareReportCard {
+  background: #fff;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow-lg;
+}
+
+.shareCardHeader {
+  background: linear-gradient(135deg, #FF9A56 0%, #FF6B6B 50%, #FF8E53 100%);
+  padding: $spacing-xl $spacing-lg;
+  text-align: center;
+  color: #fff;
+}
+
+.shareCardTitle {
+  display: block;
+  font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
+  margin-bottom: $spacing-xs;
+}
+
+.shareCardSubtitle {
+  display: block;
+  font-size: $font-size-sm;
+  opacity: 0.95;
+}
+
+.shareCardStats {
+  display: flex;
+  padding: $spacing-lg $spacing-md;
+  gap: $spacing-sm;
+  background: linear-gradient(180deg, #FFF8F2 0%, #fff 100%);
+}
+
+.shareStat {
+  flex: 1;
+  text-align: center;
+  padding: $spacing-md $spacing-xs;
+  background: #fff;
+  border-radius: $radius-md;
+  box-shadow: $shadow-sm;
+}
+
+.shareStatNum {
+  display: block;
+  font-size: 44rpx;
+  font-weight: $font-weight-bold;
+  color: $color-primary;
+  margin-bottom: 4rpx;
+}
+
+.shareStatLabel {
+  display: block;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+}
+
+.shareCardSection {
+  padding: $spacing-lg $spacing-md;
+  border-top: 1rpx solid $color-divider;
+}
+
+.shareSectionTitle {
+  display: block;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: $spacing-md;
+}
+
+.booksScroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.booksRow {
+  display: inline-flex;
+  gap: $spacing-md;
+  padding: $spacing-xs 0;
+}
+
+.bookThumbCard {
+  width: 160rpx;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.bookThumbImg {
+  width: 160rpx;
+  height: 200rpx;
+  border-radius: $radius-md;
+  box-shadow: $shadow-sm;
+  background: $color-bg-hover;
+}
+
+.bookThumbPlaceholder {
+  width: 160rpx;
+  height: 200rpx;
+  border-radius: $radius-md;
+  background: linear-gradient(135deg, #FFE4CC 0%, #FFD9C0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64rpx;
+  box-shadow: $shadow-sm;
+}
+
+.bookThumbTitle {
+  display: block;
+  margin-top: $spacing-sm;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 160rpx;
+}
+
+.shareRankWrap {
+  display: flex;
+  gap: $spacing-md;
+}
+
+.shareRankCol {
+  flex: 1;
+}
+
+.shareRankItem {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-sm 0;
+}
+
+.shareRankMedal {
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.shareRankName {
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.shareEncourage {
+  padding: $spacing-lg $spacing-md;
+  background: linear-gradient(135deg, #FFF8EC 0%, #FFFBF5 100%);
+  margin: 0 $spacing-md;
+  border-radius: $radius-md;
+}
+
+.shareEncourageText {
+  display: block;
+  text-align: center;
+  font-size: $font-size-sm;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+  line-height: 1.6;
+}
+
+.shareCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-sm;
+  padding: $spacing-lg $spacing-md $spacing-xl;
+  border-top: 1rpx solid $color-divider;
+  margin-top: $spacing-lg;
+}
+
+.shareFooterLogo {
+  font-size: 36rpx;
+}
+
+.shareFooterText {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
 }

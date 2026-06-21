@@ -376,3 +376,38 @@
     transform: translateX(0);
   }
 }
+
+.noteTextarea {
+  width: 100%;
+  min-height: 200rpx;
+  background: $color-bg-hover;
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  line-height: $line-height-base;
+  box-sizing: border-box;
+}
+
+.bookmarkList {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+  max-height: 500rpx;
+  overflow-y: auto;
+}
+
+.bookmarkItem {
+  @include button-reset;
+  width: 100%;
+  min-height: 80rpx;
+  padding: $spacing-md $spacing-lg;
+  border-radius: $radius-lg;
+  background: $color-bg-hover;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.98);
+    background: $color-primary-light;
+  }
+}

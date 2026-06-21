@@ -131,3 +131,18 @@ export interface ReadingPlan {
   date: string;
   completed: boolean;
 }
+
+export interface Bookmark {
+  bookId: string;
+  pageIndex: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface ReadingProgress {
+  bookId: string;
+  lastPage: number;
+  totalPages: number;
+  updatedAt: string;
+  notes: { pageIndex: number; content: string; createdAt: string }[];
+}

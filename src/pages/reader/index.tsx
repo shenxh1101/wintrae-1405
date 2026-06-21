@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, Image, Button, Swiper, SwiperItem } from '@tarojs/components';
+import { View, Text, Image, Button, Swiper, SwiperItem, Textarea } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import classnames from 'classnames';
 import styles from './index.module.scss';
 import { books } from '@/data/books';
 import { useApp } from '@/store/AppContext';
 import { KeyWord, QuestionCard } from '@/types';
+import { speak, stopSpeaking, initCharacterVoices, isSpeechSupported } from '@/utils/speech';
 
 const ReaderPage: React.FC = () => {
   const router = useRouter();
@@ -16,7 +17,14 @@ const ReaderPage: React.FC = () => {
     eyeCareMode,
     readingPlan,
     addGrowthRecord,
-    completeReadingPlan
+    completeReadingPlan,
+    addBookmark,
+    removeBookmark,
+    getBookmarks,
+    saveReadingProgress,
+    addNote,
+    getNotes,
+    getReadingProgress
   } = useApp();
 
   const [currentPage, setCurrentPage] = useState(0);
@@ -30,6 +38,11 @@ const ReaderPage: React.FC = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [completedRecorded, setCompletedRecorded] = useState(false);
+  const [pageHasBookmark, setPageHasBookmark] = useState(false);
+  const [showBookmarkList, setShowBookmarkList] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
+  const [pageHasNote, setPageHasNote] = useState(false);
 
   const readStartTimeRef = useRef<number>(Date.now());
 
@@ -45,6 +58,54 @@ const ReaderPage: React.FC = () => {
   useEffect(() => {
     setIsFavorited(book.isFavorite);
   }, [book.isFavorite]);
+
+  useEffect(() => {
+    console.log('[Reader] 初始化角色语音，支持语音:', isSpeechSupported());
+    initCharacterVoices(allCharacters);
+
+    const progress = getReadingProgress(book.id);
+    console.log('[Reader] 获取阅读进度:', progress);
+    if (progress && progress.lastPage > 0 && progress.lastPage < totalPages) {
+      Taro.showModal({
+        title: '继续阅读',
+        content: `上次读到第${progress.lastPage + 1}页，是否继续？`,
+        success: (res) => {
+          if (res.confirm) {
+            console.log('[Reader] 跳转到上次阅读页:', progress.lastPage);
+            setCurrentPage(progress.lastPage);
+          }
+        }
+      });
+    }
+
+    return () => {
+      console.log('[Reader] 页面卸载，停止朗读');
+      stopSpeaking();
+    };
+  }, [book.id, allCharacters, getReadingProgress, totalPages]);
+
+  useEffect(() => {
+    console.log('[Reader] currentPage变化:', currentPage, ', 保存阅读进度');
+    saveReadingProgress(book.id, currentPage, totalPages);
+
+    const bookmark = getBookmarks(book.id).find(b => b.pageIndex === currentPage);
+    setPageHasBookmark(!!bookmark);
+    console.log('[Reader] 当前页书签状态:', !!bookmark);
+
+    const notes = getNotes(book.id);
+    const pageNote = notes.find(n => n.pageIndex === currentPage);
+    setPageHasNote(!!pageNote && !!pageNote.content);
+    console.log('[Reader] 当前页笔记状态:', !!pageNote);
+  }, [currentPage, book.id, totalPages, saveReadingProgress, getBookmarks, getNotes]);
+
+  useEffect(() => {
+    if (showNoteModal) {
+      const notes = getNotes(book.id);
+      const pageNote = notes.find(n => n.pageIndex === currentPage);
+      setNoteContent(pageNote ? pageNote.content : '');
+      console.log('[Reader] 打开笔记弹窗，当前内容:', pageNote?.content || '(空)');
+    }
+  }, [showNoteModal, book.id, currentPage, getNotes]);
 
   const showToastMessage = useCallback((text: string) => {
     setToastText(text);
@@ -96,6 +157,7 @@ const ReaderPage: React.FC = () => {
   const handleSwiperChange = useCallback((e: { detail: { current: number }) => {
     const newPage = e.detail.current;
     console.log('[Reader] 翻页到:', newPage + 1, '/', totalPages);
+    stopSpeaking();
     setCurrentPage(newPage);
     setSelectedAnswer(null);
 
@@ -117,8 +179,9 @@ const ReaderPage: React.FC = () => {
 
   const handleKeyWordClick = useCallback((keyword: KeyWord) => {
     console.log('[Reader] 点击关键词:', keyword.word);
-    showToastMessage(`"${keyword.word}" 的发音`);
-  }, [showToastMessage]);
+    speak(keyword.word, selectedCharacter || undefined);
+    showToastMessage(`正在朗读：${keyword.word}`);
+  }, [selectedCharacter, showToastMessage]);
 
   const handleAnswerSelect = useCallback((index: number) => {
     if (!currentPageData.question) return;
@@ -152,6 +215,7 @@ const ReaderPage: React.FC = () => {
   const handleCharacterSelect = useCallback((character: string) => {
     console.log('[Reader] 选择角色语音:', character);
     setSelectedCharacter(character);
+    speak(`切换到${character}的声音啦`, character);
     showToastMessage(`切换到 ${character} 的声音`);
     setShowCharacterSelector(false);
   }, [showToastMessage]);
@@ -174,6 +238,7 @@ const ReaderPage: React.FC = () => {
 
   const handleBack = useCallback(() => {
     console.log('[Reader] 返回书架');
+    stopSpeaking();
     Taro.navigateBack();
   }, []);
 
@@ -195,6 +260,66 @@ const ReaderPage: React.FC = () => {
     setCurrentPage(0);
     readStartTimeRef.current = Date.now();
     setCompletedRecorded(false);
+  }, []);
+
+  const handleSpeakPage = useCallback(() => {
+    console.log('[Reader] 朗读本页，角色:', selectedCharacter);
+    speak(currentPageData.text, selectedCharacter || undefined);
+    showToastMessage('正在朗读本页...');
+  }, [currentPageData, selectedCharacter, showToastMessage]);
+
+  const handleBookmarkToggle = useCallback(() => {
+    if (pageHasBookmark) {
+      console.log('[Reader] 移除书签，页:', currentPage);
+      removeBookmark(book.id, currentPage);
+      setPageHasBookmark(false);
+      showToastMessage('已移除书签');
+    } else {
+      console.log('[Reader] 添加书签，页:', currentPage);
+      addBookmark({
+        bookId: book.id,
+        pageIndex: currentPage,
+        note: '',
+        createdAt: new Date().toISOString()
+      });
+      setPageHasBookmark(true);
+      showToastMessage('已添加书签');
+    }
+  }, [pageHasBookmark, currentPage, book.id, removeBookmark, addBookmark, showToastMessage]);
+
+  const handleOpenNoteModal = useCallback(() => {
+    console.log('[Reader] 打开笔记弹窗');
+    setShowNoteModal(true);
+  }, []);
+
+  const handleCloseNoteModal = useCallback(() => {
+    console.log('[Reader] 关闭笔记弹窗');
+    setShowNoteModal(false);
+  }, []);
+
+  const handleSaveNote = useCallback(() => {
+    console.log('[Reader] 保存笔记，内容:', noteContent);
+    addNote(book.id, currentPage, noteContent);
+    setPageHasNote(!!noteContent && noteContent.trim().length > 0);
+    setShowNoteModal(false);
+    showToastMessage('已保存笔记');
+  }, [book.id, currentPage, noteContent, addNote, showToastMessage]);
+
+  const handleOpenBookmarkList = useCallback(() => {
+    console.log('[Reader] 打开书签列表');
+    setShowBookmarkList(true);
+  }, []);
+
+  const handleCloseBookmarkList = useCallback(() => {
+    console.log('[Reader] 关闭书签列表');
+    setShowBookmarkList(false);
+  }, []);
+
+  const handleJumpToBookmark = useCallback((pageIndex: number) => {
+    console.log('[Reader] 跳转书签页:', pageIndex);
+    stopSpeaking();
+    setCurrentPage(pageIndex);
+    setShowBookmarkList(false);
   }, []);
 
   const renderTextWithKeywords = useCallback((text: string, keywords: KeyWord[]) => {
@@ -265,6 +390,12 @@ const ReaderPage: React.FC = () => {
         </View>
         <View className={styles.navRight}>
           <Button
+            className={classnames(styles.navBtn, pageHasBookmark && styles.active)}
+            onClick={handleBookmarkToggle}
+          >
+            🔖
+          </Button>
+          <Button
             className={classnames(styles.navBtn, isFavorited && styles.active)}
             onClick={handleFavoriteToggle}
           >
@@ -322,6 +453,37 @@ const ReaderPage: React.FC = () => {
             >
               ❓ 提问
             </Button>
+            <Button
+              className={styles.toolBtn}
+              onClick={handleSpeakPage}
+            >
+              🔊 朗读本页
+            </Button>
+            <View style={{ position: 'relative' }}>
+              <Button
+                className={styles.toolBtn}
+                onClick={handleOpenNoteModal}
+              >
+                📝 笔记
+              </Button>
+              {pageHasNote && (
+                <View style={{
+                  position: 'absolute',
+                  top: '4rpx',
+                  right: '12rpx',
+                  width: '16rpx',
+                  height: '16rpx',
+                  borderRadius: '8rpx',
+                  backgroundColor: '#FF5252'
+                }} />
+              )}
+            </View>
+            <Button
+              className={styles.toolBtn}
+              onClick={handleOpenBookmarkList}
+            >
+              📚 书签列表
+            </Button>
           </View>
         </View>
         <View className={styles.progressBar}>
@@ -356,6 +518,109 @@ const ReaderPage: React.FC = () => {
           onAnswerSelect={handleAnswerSelect}
           onClose={handleCloseQuestion}
         />
+      )}
+
+      {showNoteModal && (
+        <View className={styles.questionModal}>
+          <View className={styles.questionCard}>
+            <View className={styles.questionHeader}>
+              <Text className={styles.questionIcon}>📝</Text>
+              <Text className={styles.questionTitle}>家长笔记 - 第{currentPage + 1}页</Text>
+            </View>
+            <Textarea
+              className={styles.noteTextarea}
+              placeholder="在这里记录笔记、心得或给孩子的话..."
+              value={noteContent}
+              onInput={(e: any) => setNoteContent(e.detail.value)}
+              maxlength={500}
+              autoHeight
+            />
+            <View style={{ display: 'flex', gap: '16rpx', marginTop: '32rpx' }}>
+              <Button
+                style={{
+                  flex: 1,
+                  height: '80rpx',
+                  lineHeight: '80rpx',
+                  borderRadius: '40rpx',
+                  backgroundColor: '#F5F5F5',
+                  color: '#666',
+                  fontSize: '28rpx'
+                }}
+                onClick={handleCloseNoteModal}
+              >
+                关闭
+              </Button>
+              <Button
+                style={{
+                  flex: 1,
+                  height: '80rpx',
+                  lineHeight: '80rpx',
+                  borderRadius: '40rpx',
+                  background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                  color: '#fff',
+                  fontSize: '28rpx'
+                }}
+                onClick={handleSaveNote}
+              >
+                💾 保存笔记
+              </Button>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {showBookmarkList && (
+        <View className={styles.questionModal}>
+          <View className={styles.questionCard}>
+            <View className={styles.questionHeader}>
+              <Text className={styles.questionIcon}>📚</Text>
+              <Text className={styles.questionTitle}>书签列表</Text>
+            </View>
+            <View className={styles.bookmarkList}>
+              {getBookmarks(book.id).length === 0 ? (
+                <View style={{ padding: '40rpx 0', textAlign: 'center' }}>
+                  <Text style={{ fontSize: '32rpx', color: '#999' }}>还没有书签，快去添加吧～</Text>
+                </View>
+              ) : (
+                getBookmarks(book.id)
+                  .sort((a, b) => a.pageIndex - b.pageIndex)
+                  .map((bookmark, idx) => (
+                    <Button
+                      key={idx}
+                      className={styles.bookmarkItem}
+                      onClick={() => handleJumpToBookmark(bookmark.pageIndex)}
+                    >
+                      <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <Text style={{ fontSize: '30rpx', fontWeight: 'bold', color: '#333' }}>
+                          📖 第{bookmark.pageIndex + 1}页
+                        </Text>
+                        {bookmark.note && bookmark.note.length > 0 && (
+                          <Text style={{ fontSize: '24rpx', color: '#999', maxWidth: '400rpx', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {bookmark.note}
+                          </Text>
+                        )}
+                      </View>
+                    </Button>
+                  ))
+              )}
+            </View>
+            <Button
+              style={{
+                width: '100%',
+                marginTop: '24rpx',
+                height: '72rpx',
+                lineHeight: '72rpx',
+                borderRadius: '36rpx',
+                backgroundColor: '#F5F5F5',
+                color: '#666',
+                fontSize: '26rpx'
+              }}
+              onClick={handleCloseBookmarkList}
+            >
+              关闭
+            </Button>
+          </View>
+        </View>
       )}
 
       {showComplete && (
